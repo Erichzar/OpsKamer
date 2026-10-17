@@ -611,6 +611,10 @@ try {
             [void](& $gs -C $upWork add -A 2>&1); [void](& $gs -C $upWork @gid commit --quiet -m $msg 2>&1)
             [void](& $gs -C $upWork push --quiet $upBare HEAD:main 2>&1)
             return ([string](& $gs -C $upWork rev-parse HEAD)).Trim() }
+        # file:// URL built by hand: works for git on Windows (file:///C:/...) and macOS (file:///var/...).
+        $upUrl = $upBare.Replace('\', '/')
+        if ($upUrl -notmatch '^/') { $upUrl = '/' + $upUrl }
+        $upUrl = 'file://' + $upUrl
         $c1 = & $commitUp "---`nname: upskill`ndescription: d`n---`nv1" 'MIT License' 'v1'
 
         $savedBundle = $BundledSkillsDir; $savedState = $MissionStateDir
@@ -619,17 +623,20 @@ try {
         New-Item -ItemType Directory -Path $bsk -Force | Out-Null
         Copy-Item (Join-Path $upWork 'SKILL.md'), (Join-Path $upWork 'LICENSE') $bsk
         'provenance' | Set-Content (Join-Path $bsk 'VENDORED.md') -Encoding UTF8
-        ([ordered]@{ repo = ([uri]$upBare).AbsoluteUri; ref = 'main'; commit = $c1; include = @('SKILL.md', 'LICENSE'); licence = 'MIT' } | ConvertTo-Json) |
+        ([ordered]@{ repo = $upUrl; ref = 'main'; commit = $c1; include = @('SKILL.md', 'LICENSE'); licence = 'MIT' } | ConvertTo-Json) |
             Set-Content (Join-Path $bsk 'source.json') -Encoding UTF8
         $claudeCopy = Join-Path (Join-Path $fakeSkillsDir 'upskill') 'SKILL.md'
         $agentsCopy = Join-Path (Join-Path $fakeAgentsSkillsDir 'upskill') 'SKILL.md'
         [void](Install-BundledSkill -Name 'upskill' -Quiet 6>$null)
         Check 'src: no source.json -> not an upstream skill' ($null -eq (Get-SkillSourceConfig 'jq'))
         Check 'src: source copy starts as the bundled one' ((Get-SkillSourceDir 'upskill') -eq $bsk)
-        Check 'src: upstream unchanged -> current' ((Update-SkillFromSource 'upskill').status -eq 'current')
+        $r1 = Update-SkillFromSource 'upskill'
+        if ($r1.status -ne 'current') { Write-Host "      upstream $upUrl -> $($r1.status): $($r1.detail)" -ForegroundColor Red }
+        Check 'src: upstream unchanged -> current' ($r1.status -eq 'current')
 
         $c2 = & $commitUp "---`nname: upskill`ndescription: d`n---`nv2" 'MIT License' 'v2'
         $r2 = Update-SkillFromSource 'upskill'
+        if ($r2.status -ne 'updated') { Write-Host "      $($r2.status): $($r2.detail)" -ForegroundColor Red }
         Check 'src: new upstream commit -> updated' ($r2.status -eq 'updated')
         Check 'src: both harnesses get the upstream version' ((Get-Content $claudeCopy -Raw) -match 'v2' -and (Get-Content $agentsCopy -Raw) -match 'v2')
         Check 'src: provenance files kept, unlisted upstream files not copied' ((Test-Path (Join-Path (Split-Path $agentsCopy) 'VENDORED.md')) -and -not (Test-Path (Join-Path (Split-Path $agentsCopy) 'README.md')))
@@ -1355,6 +1362,12 @@ try {
     $emptyReadHost = @(Get-ChildItem (Join-Path $RepoRoot 'lib') -Filter '*.ps1' | Select-String -Pattern $emptyReadHostRe)
     Check "menu prompt: the guard pattern catches Read-Host ''" ("return (Read-Host '')" -match $emptyReadHostRe)
     Check "menu prompt: no Read-Host '' in lib" ($emptyReadHost.Count -eq 0)
+} catch {
+    # An exception must fail the run. Without this catch, a crash ended the main block early and the
+    # summary still said '0 failed' (exit 0) with half the checks never run.
+    $script:Fail++
+    Write-Host "FAIL  test run aborted: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host $_.ScriptStackTrace -ForegroundColor DarkRed
 } finally {
     Set-Location $RepoRoot
     Remove-Item $TestRoot -Recurse -Force -ErrorAction SilentlyContinue

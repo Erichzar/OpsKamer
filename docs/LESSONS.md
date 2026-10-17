@@ -100,6 +100,8 @@ are written into the code as comments next to the fix; this page collects them.
 
 ## Tests
 
+- **A crash must fail the run.** A `try/finally` without `catch` let an exception end the test block early,
+  and the summary still said "0 failed". Count the exception as a failure, and watch the test count too.
 - **Hermetic or nothing.** Every fixture lives in a temp folder. The tests never read or write the real
   `~/.claude`, `~/.pi`, config or registry.
 - **Shadow, don't mock frameworks.** A PowerShell function with a cmdlet's name (`Invoke-WebRequest`,
