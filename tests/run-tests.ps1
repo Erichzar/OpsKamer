@@ -108,6 +108,7 @@ try {
     . (Join-Path $MissionLibDir '50-context.ps1')
     . (Join-Path $MissionLibDir '60-health.ps1')
     . (Join-Path $MissionLibDir '65-updates.ps1')
+    . (Join-Path $MissionLibDir '66-sources.ps1')
     . (Join-Path $MissionLibDir '80-launch.ps1')
 
     # =======================================================================
@@ -584,6 +585,84 @@ try {
     foreach ($sd in @(Get-ChildItem (Join-Path $RepoRoot 'skills') -Directory)) {
         $head = (Get-Content (Join-Path $sd.FullName 'SKILL.md') -TotalCount 6) -join "`n"
         Check "skill: repo $($sd.Name) has name + description frontmatter" ($head -match '(?m)^---' -and $head -match "(?m)^name:\s*$([regex]::Escape($sd.Name))\s*$" -and $head -match '(?m)^description:\s*\S')
+    }
+
+    # =======================================================================
+    # Skills updated from their own upstream (lib/66-sources.ps1) - local bare repo as upstream
+    # =======================================================================
+    Check 'src: MIT text matches MIT'          (Test-SkillLicenceMatches "MIT License`n`nCopyright (c) 2026 X" 'MIT')
+    Check 'src: MIT permission text matches'  (Test-SkillLicenceMatches 'Permission is hereby granted, free of charge, to any person' 'MIT')
+    Check 'src: changed licence refused'      (-not (Test-SkillLicenceMatches 'Copyright X. All rights reserved.' 'MIT'))
+    Check 'src: missing licence refused'      (-not (Test-SkillLicenceMatches '' 'MIT'))
+    Check 'src: Apache 2.0 matches'           (Test-SkillLicenceMatches "Apache License`nVersion 2.0, January 2004" 'Apache-2.0')
+    $gitExeS = (Get-Command git -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1)
+    if ($gitExeS) {
+        $gs = $gitExeS.Source
+        $eapSrc = $ErrorActionPreference; $ErrorActionPreference = 'Continue'   # git writes progress to stderr (5.1 + Stop = fatal)
+        $gid = @('-c', 'user.email=t@example.invalid', '-c', 'user.name=t', '-c', 'commit.gpgsign=false')
+        $upBare = Join-Path $TestRoot 'skill-upstream.git'
+        $upWork = Join-Path $TestRoot 'skill-upstream-work'
+        [void](& $gs init --quiet --bare -b main $upBare 2>&1)
+        [void](& $gs init --quiet -b main $upWork 2>&1)
+        $commitUp = { param($skillText, $licText, $msg)
+            Set-Content (Join-Path $upWork 'SKILL.md') $skillText -Encoding UTF8
+            Set-Content (Join-Path $upWork 'LICENSE') $licText -Encoding UTF8
+            Set-Content (Join-Path $upWork 'README.md') 'not vendored' -Encoding UTF8
+            [void](& $gs -C $upWork add -A 2>&1); [void](& $gs -C $upWork @gid commit --quiet -m $msg 2>&1)
+            [void](& $gs -C $upWork push --quiet $upBare HEAD:main 2>&1)
+            return ([string](& $gs -C $upWork rev-parse HEAD)).Trim() }
+        $c1 = & $commitUp "---`nname: upskill`ndescription: d`n---`nv1" 'MIT License' 'v1'
+
+        $savedBundle = $BundledSkillsDir; $savedState = $MissionStateDir
+        $BundledSkillsDir = Join-Path $TestRoot 'bundle-src'; $MissionStateDir = Join-Path $TestRoot 'state-src'
+        $bsk = Join-Path $BundledSkillsDir 'upskill'
+        New-Item -ItemType Directory -Path $bsk -Force | Out-Null
+        Copy-Item (Join-Path $upWork 'SKILL.md'), (Join-Path $upWork 'LICENSE') $bsk
+        'provenance' | Set-Content (Join-Path $bsk 'VENDORED.md') -Encoding UTF8
+        ([ordered]@{ repo = ([uri]$upBare).AbsoluteUri; ref = 'main'; commit = $c1; include = @('SKILL.md', 'LICENSE'); licence = 'MIT' } | ConvertTo-Json) |
+            Set-Content (Join-Path $bsk 'source.json') -Encoding UTF8
+        $claudeCopy = Join-Path (Join-Path $fakeSkillsDir 'upskill') 'SKILL.md'
+        $agentsCopy = Join-Path (Join-Path $fakeAgentsSkillsDir 'upskill') 'SKILL.md'
+        [void](Install-BundledSkill -Name 'upskill' -Quiet 6>$null)
+        Check 'src: no source.json -> not an upstream skill' ($null -eq (Get-SkillSourceConfig 'jq'))
+        Check 'src: source copy starts as the bundled one' ((Get-SkillSourceDir 'upskill') -eq $bsk)
+        Check 'src: upstream unchanged -> current' ((Update-SkillFromSource 'upskill').status -eq 'current')
+
+        $c2 = & $commitUp "---`nname: upskill`ndescription: d`n---`nv2" 'MIT License' 'v2'
+        $r2 = Update-SkillFromSource 'upskill'
+        Check 'src: new upstream commit -> updated' ($r2.status -eq 'updated')
+        Check 'src: both harnesses get the upstream version' ((Get-Content $claudeCopy -Raw) -match 'v2' -and (Get-Content $agentsCopy -Raw) -match 'v2')
+        Check 'src: provenance files kept, unlisted upstream files not copied' ((Test-Path (Join-Path (Split-Path $agentsCopy) 'VENDORED.md')) -and -not (Test-Path (Join-Path (Split-Path $agentsCopy) 'README.md')))
+        Check 'src: installs now come from the staged copy' ((Get-SkillSourceDir 'upskill') -eq (Get-SkillStagingDir 'upskill'))
+        Check 'src: staged source.json records the new commit' ((Get-SkillSourceCommit 'upskill') -eq $c2)
+        Check 'src: status sees the update as identical (no false drift)' (@(Get-BundledSkillStatus -Names @('upskill') | Where-Object { $_.status -ne 'identical' }).Count -eq 0)
+        Check 'src: repo bundle untouched' ((Get-Content (Join-Path $bsk 'SKILL.md') -Raw) -match 'v1')
+
+        'my own edit' | Set-Content $claudeCopy -Encoding UTF8
+        $c3 = & $commitUp "---`nname: upskill`ndescription: d`n---`nv3" 'MIT License' 'v3'
+        $r3 = Update-SkillFromSource 'upskill'
+        Check 'src: an edited install is never overwritten' ($r3.status -eq 'updated' -and (Get-Content $claudeCopy -Raw).Trim() -eq 'my own edit' -and $r3.detail -match 'kept your changed copy for Claude Code')
+        Check 'src: the unedited install still updates' ((Get-Content $agentsCopy -Raw) -match 'v3')
+
+        [void](& $commitUp "---`nname: upskill`ndescription: d`n---`nv4" 'Copyright X. All rights reserved.' 'relicensed')
+        $r4 = Update-SkillFromSource 'upskill'
+        Check 'src: upstream licence change -> refused, nothing installed' ($r4.status -eq 'refused' -and (Get-Content $agentsCopy -Raw) -match 'v3' -and (Get-SkillSourceCommit 'upskill') -eq $c3)
+
+        $BundledSkillsDir = $savedBundle; $MissionStateDir = $savedState; $ErrorActionPreference = $eapSrc
+        Remove-Item (Join-Path $fakeSkillsDir 'upskill'), (Join-Path $fakeAgentsSkillsDir 'upskill') -Recurse -Force -ErrorAction SilentlyContinue
+    } else {
+        Skip 'src: skill update from upstream' 'git not found'
+    }
+    # The real repo: a vendored skill (VENDORED.md) always ships its licence file.
+    foreach ($vd in @(Get-ChildItem (Join-Path $RepoRoot 'skills') -Recurse -Filter 'VENDORED.md' -File)) {
+        Check "licence: vendored $(Split-Path $vd.DirectoryName -Leaf) ships a LICENSE file" (@(Get-ChildItem $vd.DirectoryName -Filter 'LICENSE*' -File).Count -gt 0)
+    }
+    # The real repo: every source.json is complete, and its files exist in the bundled copy.
+    foreach ($sj in @(Get-ChildItem (Join-Path $RepoRoot 'skills') -Recurse -Filter 'source.json' -File)) {
+        $s = Get-Content $sj.FullName -Raw | ConvertFrom-Json
+        $okFields = $s.repo -and $s.ref -and ($s.commit -match '^[0-9a-f]{40}$') -and @($s.include).Count -gt 0 -and $s.licence
+        $missing = @(@($s.include) | Where-Object { -not (Test-Path (Join-Path $sj.DirectoryName $_)) })
+        Check "src: repo $(Split-Path $sj.DirectoryName -Leaf) source.json complete, files present" ($okFields -and $missing.Count -eq 0)
     }
 
     # =======================================================================

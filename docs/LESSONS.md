@@ -9,6 +9,12 @@ are written into the code as comments next to the fix; this page collects them.
   an old build gets *"Claude Code X does not support this model; version Y or newer is required"* for a
   model that otherwise works. Keeping tools current is about correctness, not tidiness. Check daily, and
   check again right before launching an agent.
+- **Update every part from its own source.** A copy re-published by someone in between goes stale the
+  moment they stop. Record where each part comes from (`source.json` for skills, the fork's remote, the npm
+  package) and fetch from there.
+- **Check the licence on every update, not only the first time.** Upstream can relicense. Refuse the
+  update when the licence text no longer matches, and never drop the licence file when vendoring: an
+  over-broad exclude once removed one, and only a test caught it.
 - **Throttle the checks, and never block a launch on them.** Version probes hit the network, so cache the
   result (`.mission-centre/tool-updates.json`) and probe at most every `intervalHours`. Offline, a missing
   npm or a failed update prints a warning and the launch continues.

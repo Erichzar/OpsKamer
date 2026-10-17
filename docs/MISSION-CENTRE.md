@@ -415,11 +415,48 @@ Agent CLIs ship several releases a week, and **Anthropic gates new models on the
 version**: an old Claude Code gets `Claude Code X does not support this model; version Y or newer
 is required` for models that otherwise work. Mission Centre keeps the toolchain current:
 
-- **At startup:** checks the npm packages in `toolUpdates.packages`. It says nothing when
-  everything is current.
-- **When opening a pi project:** checks `toolUpdates.piPackages`, Claude Code, and the pi fork
-  (if `piFork` is enabled) before launching.
-- **`[U]`:** checks everything now, ignoring the throttle.
+- **At startup:** checks the npm packages in `toolUpdates.packages` and the vendored skills. It says
+  nothing when everything is current.
+- **When opening a pi project:** checks `toolUpdates.piPackages`, Claude Code, the pi fork (if
+  `piFork` is enabled), pi's own packages and tokenjuice before launching.
+- **`[U]`:** checks everything now, ignoring the throttle, and lists where each part updates from.
+
+### Every part updates from its own source
+
+Nothing third-party is updated from a copy in this repo. Each part is fetched from where it comes from:
+
+| Part | Updates from | How |
+|---|---|---|
+| Mission Centre, Jig profiles, `ui-design` | this repo (they live here) | self-update: fast-forward of your checkout |
+| Claude Code | Anthropic | `claude update` (or `winget upgrade` when installed with winget) |
+| pi | npm (`@earendil-works/pi-coding-agent`) | `npm i -g` |
+| pi from source (`pii`) | the fork's git remote (`toolUpdates.piFork`, e.g. leo-labs-ai/pi-mono) | fetch, merge, build |
+| pi packages (e.g. pi-semantic-grep) | their own sources | `pi update --extensions` |
+| tokenjuice for pi | npm (`tokenjuice`) | its own installer, `npx tokenjuice install pi` |
+| `vibe-check` skill | github.com/TexasBedouin/vibe-check | `skills/vibe-check/source.json` (below) |
+
+**Skills from upstream.** A vendored skill carries a `source.json`: upstream repo, branch, the files to
+take, and the licence. When the upstream branch has moved past the installed commit, Mission Centre clones
+it (shallow), lays the listed files over the bundled folder (provenance files such as `VENDORED.md` stay),
+stages the result in `.mission-centre/skill-sources/<name>/`, and installs it into `~/.claude/skills` and
+`~/.agents/skills`. Two safeguards:
+
+- A copy you edited is never overwritten: it is reported, and `[G]` shows the difference.
+- If the upstream licence file no longer matches the licence in `source.json`, the update is refused.
+
+To follow another upstream skill, add a folder under `skills/` with its `SKILL.md`, licence and a
+`source.json`:
+
+```json
+{
+  "repo": "https://github.com/<owner>/<skill-repo>.git",
+  "ref": "main",
+  "commit": "<40-character commit you vendored>",
+  "include": ["SKILL.md", "references", "LICENSE"],
+  "licence": "MIT",
+  "licenceFile": "LICENSE"
+}
+```
 
 ```json
 "toolUpdates": {

@@ -258,7 +258,7 @@ function Get-BundledSkillStatus {
     if (-not $PSBoundParameters.ContainsKey('Names')) { $Names = @(Get-BundledSkillNames) }
     $rows = New-Object System.Collections.Generic.List[object]
     foreach ($name in @($Names)) {
-        $srcPrint = Get-SkillDirFingerprint (Join-Path $BundledSkillsDir $name)
+        $srcPrint = Get-SkillDirFingerprint (Get-SkillSourceDir $name)   # newest upstream copy when staged (66-sources)
         foreach ($t in Get-SkillInstallTargets) {
             $dst = Join-Path $t.dir $name
             $status = if (-not (Test-Path (Join-Path $dst 'SKILL.md') -PathType Leaf)) { 'missing' }
@@ -284,7 +284,7 @@ function Install-BundledSkill {
     # installs and ask before overwriting a different one.
     param([string]$Name, [switch]$Quiet)
 
-    $sourceDir = Join-Path $BundledSkillsDir $Name
+    $sourceDir = Get-SkillSourceDir $Name   # newest upstream copy when staged (66-sources), else bundled
     if (-not (Test-Path (Join-Path $sourceDir 'SKILL.md') -PathType Leaf)) {
         Write-Host "  ERROR: Bundled $Name skill not found: $sourceDir" -ForegroundColor Red
         return $false

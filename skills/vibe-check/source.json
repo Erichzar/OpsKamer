@@ -1,0 +1,8 @@
+{
+  "repo": "https://github.com/TexasBedouin/vibe-check.git",
+  "ref": "master",
+  "commit": "f81d7496e2387cf47dc26aa293f54382f6c9bff6",
+  "include": ["SKILL.md", "references", "LICENSE", "VERSION"],
+  "licence": "MIT",
+  "licenceFile": "LICENSE"
+}

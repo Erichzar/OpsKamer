@@ -834,6 +834,8 @@ function Invoke-PiLaunchUpdateGate {
     }
     # The leo-labs-ai fork (pii) updates from git, not npm.
     Invoke-PiForkUpdateCheck -Mode $ToolUpdatesMode -IntervalHours $ToolUpdateIntervalHours
+    # pi's own packages and tokenjuice, from their sources (66-sources.ps1).
+    Invoke-PiSourceUpdates -Mode $ToolUpdatesMode -IntervalHours $ToolUpdateIntervalHours
 }
 
 function Invoke-StartupToolUpdateCheck {
@@ -843,6 +845,8 @@ function Invoke-StartupToolUpdateCheck {
                            -IntervalHours $ToolUpdateIntervalHours `
                            -IncludeClaudeCode:$ToolUpdateIncludeClaudeCode `
                            -Label 'Toolchain'
+    # Vendored skills, from their upstream repos (66-sources.ps1).
+    Invoke-SkillSourceUpdateCheck -Mode $ToolUpdatesMode -IntervalHours $ToolUpdateIntervalHours
 }
 
 function Invoke-ToolUpdateMenu {
@@ -860,4 +864,9 @@ function Invoke-ToolUpdateMenu {
                            -Force `
                            -Label 'Toolchain'
     Invoke-PiForkUpdateCheck -Mode 'check' -Force
+    Invoke-PiSourceUpdates -Mode 'check' -Force
+    Invoke-SkillSourceUpdateCheck -Mode 'check' -Force
+    Write-Host ''
+    Write-Host '  Where updates come from' -ForegroundColor Cyan
+    foreach ($r in @(Get-UpdateSourceRows)) { Write-Host ("   {0,-38} {1}" -f $r.part, $r.source) -ForegroundColor DarkGray }
 }

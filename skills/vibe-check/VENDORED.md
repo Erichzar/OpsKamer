@@ -19,12 +19,13 @@ skill, bundled so Mission Centre can install it for the `[NA] New App` path and 
 `README.md`, `RELEASING.md`) are intentionally **not** vendored — they are not needed
 at skill runtime.
 
-## Refreshing
+## Updates come from upstream
 
-To pull a newer upstream release, re-run from the repo root:
+Mission Centre updates this skill **from its source**, not from this repo. `source.json` names the
+upstream repo, branch, the files above and the licence. Once a day (or on `[U]`) Mission Centre compares
+the upstream branch with the commit it last installed. When upstream has moved, it stages the new files in
+`.mission-centre/skill-sources/vibe-check/` and installs them into `~/.claude/skills` and
+`~/.agents/skills`. It does not overwrite a copy you changed, and it refuses the update if the upstream
+licence is no longer MIT.
 
-```bash
-npx skills add TexasBedouin/vibe-check   # or: git clone + copy SKILL.md, references/, LICENSE, VERSION
-```
-
-Then update the pinned commit and version above.
+The pinned commit above is only the starting point that ships with OpsKamer.

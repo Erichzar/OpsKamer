@@ -36,7 +36,7 @@ globals stay visible inside the functions. To add a function, put it in the matc
   builders · `20-ui` menus · `30-discovery` project discovery, registry I/O, scaffolding, skills install ·
   `35-sharedstate` self-update and the optional shared registry · `40-sessions` Claude Code / pi session
   history · `50-context` CLAUDE.md setup, wiki config, context pack · `60-health` checks and Jig preflight ·
-  `65-updates` toolchain and pi-fork updates · `80-launch` terminals and every launch path ·
+  `65-updates` toolchain and pi-fork updates · `66-sources` skills, pi packages and tokenjuice from their own sources · `80-launch` terminals and every launch path ·
   `99-main` menu loop and dispatch.
 
 ## Rules

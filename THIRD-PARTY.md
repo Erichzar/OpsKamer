@@ -6,7 +6,7 @@ OpsKamer is Apache-2.0 (see [LICENSE](LICENSE)). The parts below come from other
 
 | What | Where | Source | Licence |
 |---|---|---|---|
-| vibe-check skill | `skills/vibe-check/` | [TexasBedouin/vibe-check](https://github.com/TexasBedouin/vibe-check), pinned commit in `VENDORED.md` | MIT, `skills/vibe-check/LICENSE` |
+| vibe-check skill | `skills/vibe-check/` | [TexasBedouin/vibe-check](https://github.com/TexasBedouin/vibe-check); starting commit in `source.json`, then updated from upstream (licence checked on every update) | MIT, `skills/vibe-check/LICENSE` |
 | *Details that make interfaces feel better* | `skills/ui-design/references/` (typography, surfaces, animations, icons, performance) | [jakubkrehel/make-interfaces-feel-better](https://github.com/jakubkrehel/make-interfaces-feel-better), Jakub Krehel | MIT, `skills/ui-design/references/LICENSE-make-interfaces-feel-better.txt` |
 | Ideas adapted (not copied) in `ui-design` | `skills/ui-design/` | [anthropics/skills](https://github.com/anthropics/skills) (`frontend-design`, `web-artifacts-builder`, `webapp-testing`) | see that repository; attribution in `skills/ui-design/references/sources.md` |
 

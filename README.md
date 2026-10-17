@@ -62,8 +62,11 @@ make sure it fits your provider's terms. Details: [docs/MODEL-ACCESS.md](docs/MO
 
 ## Keeping it current
 
-Mission Centre updates itself at launch (fast-forward only, never over your local changes). It also checks
-Claude Code, pi and an optional pi fork at most once a day, and **[U]** forces a check. See
+Every part updates **from its own source**, not from a copy in this repo: Claude Code from Anthropic, pi
+and tokenjuice from npm, pi packages through pi, a pi fork from its git remote, and vendored skills from
+their upstream repos (never over your own edits, never when the upstream licence changed). Mission Centre
+itself, its profiles and `ui-design` live here and update by fast-forward. Checks run at most once a day;
+**[U]** forces one and lists where everything comes from. See
 [Tool Updates](docs/MISSION-CENTRE.md#tool-updates).
 
 ## Your data stays yours
