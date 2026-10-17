@@ -1,0 +1,23 @@
+# Local-only working files (plan, private denylist). Never commit.
+.local/
+
+# Mission Centre per-user config, registry and state
+mission-centre/config.json
+mission-centre/projects.json
+mission-centre/.mission-centre/
+*.bak-*
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.credentials*
+auth.json
+
+# Editor / OS / agent scratch
+.claude/
+.pi/
+.DS_Store
+Thumbs.db
+~$*
+node_modules/

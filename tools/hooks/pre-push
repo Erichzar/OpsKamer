@@ -1,0 +1,5 @@
+#!/bin/sh
+# Blocks a push when the privacy check fails. Install once per clone:
+#   git config core.hooksPath tools/hooks
+root="$(git rev-parse --show-toplevel)"
+exec pwsh -NoProfile -File "$root/tools/privacy-check.ps1" -Root "$root"

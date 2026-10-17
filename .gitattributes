@@ -1,0 +1,6 @@
+* text=auto
+*.sh text eol=lf
+tools/hooks/* text eol=lf
+*.bat text eol=crlf
+*.ans binary
+*.png binary
