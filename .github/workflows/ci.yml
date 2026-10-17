@@ -1,0 +1,84 @@
+# OpsKamer CI: behaviour tests on Windows PowerShell 5.1, PowerShell 7 (Windows) and PowerShell 7
+# (macOS), PSScriptAnalyzer, shell syntax, and the generic privacy check. Windows PowerShell 5.1 is
+# the strictest target: StrictMode scalar-.Count and native-stderr promotion behave differently
+# there, and both have caused real launcher bugs (see docs/LESSONS.md).
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test-windows-powershell-51:
+    name: tests / Windows PowerShell 5.1
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Run test suite
+        shell: powershell
+        run: .\tests\run-tests.ps1
+
+  test-powershell-7-windows:
+    name: tests / PowerShell 7 (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Run test suite
+        shell: pwsh
+        run: ./tests/run-tests.ps1
+
+  test-powershell-7-macos:
+    name: tests / PowerShell 7 (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Run test suite
+        shell: pwsh
+        run: ./tests/run-tests.ps1
+      - name: Shell scripts parse
+        shell: bash
+        run: |
+          bash -n launch.sh
+          bash -n pi/scripts/bootstrap.sh
+          sh -n tools/hooks/pre-push
+
+  lint:
+    name: PSScriptAnalyzer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install PSScriptAnalyzer
+        shell: pwsh
+        run: Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
+      - name: Analyze (fail on Error severity; warnings reported, non-blocking)
+        shell: pwsh
+        run: |
+          $results = @(Invoke-ScriptAnalyzer -Path .\Mission-Centre.ps1 -Severity Error,Warning) +
+                     @(Invoke-ScriptAnalyzer -Path .\setup.ps1 -Severity Error,Warning) +
+                     @(Invoke-ScriptAnalyzer -Path .\lib -Severity Error,Warning) +
+                     @(Invoke-ScriptAnalyzer -Path .\tests -Severity Error,Warning) +
+                     @(Invoke-ScriptAnalyzer -Path .\tools -Severity Error,Warning) +
+                     @(Invoke-ScriptAnalyzer -Path .\pi\scripts -Severity Error,Warning)
+          if ($results.Count -gt 0) {
+            $results | Format-Table RuleName, Severity, ScriptName, Line, Message -AutoSize |
+              Out-String -Width 240 | Write-Host
+          }
+          $errors = @($results | Where-Object { $_.Severity -eq 'Error' })
+          if ($errors.Count -gt 0) { throw "PSScriptAnalyzer found $($errors.Count) error(s)." }
+          Write-Host "No PSSA errors. $($results.Count) warning(s) reported (non-blocking)."
+
+  privacy:
+    name: privacy check (generic rules)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Run privacy check
+        shell: pwsh
+        run: ./tools/privacy-check.ps1
