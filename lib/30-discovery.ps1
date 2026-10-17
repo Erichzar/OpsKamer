@@ -173,14 +173,20 @@ function Install-StarterJigProfiles {
             continue
         }
         if ($status -eq 'differs') {
-            # Default Y: the installed copy of a *starter* profile that differs from
-            # bundled is almost always stale, and stale profiles have inverted launch
-            # semantics before (vibe: plan-mode rewrite vs old full-autonomy copy).
+            # Default Y here ([G] is an explicit request): the installed copy of a *starter* profile that
+            # differs from bundled is usually stale, and stale profiles have inverted launch semantics
+            # before (vibe: plan-mode rewrite vs old full-autonomy copy). Your copy is backed up first.
             Write-Host "   $($profileName.Name) differs from the bundled copy (installed may be stale)." -ForegroundColor Yellow
             if (-not (Read-YesNo "   Update $($profileName.Name) to the bundled version?" 'Y')) {
                 Write-Host "   kept existing $($profileName.Name)" -ForegroundColor DarkGray
                 continue
             }
+        }
+        if (Test-Path -LiteralPath $target -PathType Leaf) {
+            # Your copy is kept next to it (Jig reads only *.yaml, so the backup is not loaded as a profile).
+            $bak = "$target.bak-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+            Copy-Item -LiteralPath $target -Destination $bak -Force
+            Write-Host "   backed up your $($profileName.Name) -> $(Split-Path $bak -Leaf)" -ForegroundColor DarkGray
         }
         Copy-Item -Path $profileName.FullName -Destination $target -Force
         Write-Host "   installed $($profileName.Name)" -ForegroundColor Green
@@ -875,7 +881,7 @@ function Import-ExistingProject {
         if ($hasPlan) {
             Write-Host "  [L]  Launch with pi ($(Get-PiModelLabel))" -ForegroundColor Green
         } else {
-            Write-Host '  [L]  Kickoff: plan with Forge in Claude Code, then build in pi' -ForegroundColor Green
+            Write-Host "  [L]  Kickoff: $(Get-KickoffPlannerLabel), then build in pi" -ForegroundColor Green
             Write-Host '  [P]  Start in pi now (no planning)'                           -ForegroundColor Green
         }
         Write-Host '  [C]  Continue latest (pi)'                  -ForegroundColor Green
@@ -949,7 +955,7 @@ function Add-NewProject {
     Write-Host ''
     Write-Host '  Setup complete. Launch a kickoff mission now?' -ForegroundColor Cyan
     if (Test-PiDefaultEngine) {
-        Write-Host '  [L]  Kickoff: plan with Forge in Claude Code, then build in pi'    -ForegroundColor Green
+        Write-Host "  [L]  Kickoff: $(Get-KickoffPlannerLabel), then build in pi"    -ForegroundColor Green
         Write-Host '  [V]  Plan with vibe-check in Claude Code, then build in pi'        -ForegroundColor Cyan
         Write-Host "  [P]  Start in pi now (no planning, $(Get-PiModelLabel))" -ForegroundColor Green
         Write-Host "  [CK] Claude only: Forge kickoff (jig run $MetaProfile)"            -ForegroundColor Blue

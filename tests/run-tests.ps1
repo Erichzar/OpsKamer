@@ -81,6 +81,10 @@ try {
     $WikiConfigPath = Join-Path $WikiConfigDir 'config'
     $WikiProfileVaults = @{}
     $WikiProfilePage = 'profile'; $WikiMapPage = 'system-map'
+    # Claude Code home for plugin checks (Test-ForgeInstalled): a fixture with Forge installed.
+    $McClaudeDir = Join-Path $TestRoot 'claude-home'
+    New-Item -ItemType Directory -Path (Join-Path $McClaudeDir 'plugins') -Force | Out-Null
+    '{"version":2,"plugins":{"forge@forge":[{"scope":"user"}]}}' | Set-Content (Join-Path (Join-Path $McClaudeDir 'plugins') 'installed_plugins.json') -Encoding UTF8
     $PiEnabled = $true; $PiCommand = 'pi'; $PiProvider = 'my-proxy'
     $PiModel = 'claude-opus-4-8'; $PiModelCycle = ''; $PiServerHealthUrl = ''
     $PiServerAutoStart = $false; $PiServerTaskName = ''; $PiServerStartCommand = ''; $PiServerWorkingDir = ''
@@ -586,6 +590,39 @@ try {
         $head = (Get-Content (Join-Path $sd.FullName 'SKILL.md') -TotalCount 6) -join "`n"
         Check "skill: repo $($sd.Name) has name + description frontmatter" ($head -match '(?m)^---' -and $head -match "(?m)^name:\s*$([regex]::Escape($sd.Name))\s*$" -and $head -match '(?m)^description:\s*\S')
     }
+
+    # =======================================================================
+    # Starter profiles: backups, the permission_mode key, and asking once per drift
+    # =======================================================================
+    $profBundle = Join-Path $TestRoot 'prof-bundle'; $profHome = Join-Path $TestRoot 'prof-home'
+    New-Item -ItemType Directory -Path $profBundle, $profHome -Force | Out-Null
+    "name: standard`npermission_mode: default`n" | Set-Content (Join-Path $profBundle 'standard.yaml') -Encoding UTF8
+    "name: standard`npermission-mode: plan`n# my own tweak`n" | Set-Content (Join-Path $profHome 'standard.yaml') -Encoding UTF8
+    Check 'profiles: hyphen permission-mode is flagged (Jig ignores it)' ((@(Get-JigProfileKeyWarnings $profHome) -join ',') -eq 'standard.yaml')
+    Check 'profiles: underscore permission_mode is fine' (@(Get-JigProfileKeyWarnings $profBundle).Count -eq 0)
+    $savedBundledProf = $BundledJigProfilesDir; $BundledJigProfilesDir = $profBundle
+    $origGjp = ${function:Get-GlobalJigProfilesDir}; $origPcd = ${function:Get-PluginCacheDrift}; $origRyn = ${function:Read-YesNo}
+    function Get-GlobalJigProfilesDir { $profHome }
+    function jig { $global:LASTEXITCODE = 0 }            # stub: never the real jig
+    function Get-PluginCacheDrift { @() }
+    $script:yesNoAsked = 0; $script:yesNoAnswer = $false
+    function Read-YesNo { param($Prompt, $Default) $script:yesNoAsked++; $script:yesNoLastDefault = $Default; return $script:yesNoAnswer }
+    function Read-Host { param($Prompt) '' }
+    Invoke-StartupDriftCheck 6>$null
+    Check 'profiles: startup asks once, default No' ($script:yesNoAsked -eq 1 -and $script:yesNoLastDefault -eq 'N')
+    Invoke-StartupDriftCheck 6>$null
+    Check 'profiles: a declined drift is not asked again' ($script:yesNoAsked -eq 1)
+    "name: standard`npermission_mode: plan`n# changed again`n" | Set-Content (Join-Path $profHome 'standard.yaml') -Encoding UTF8
+    Invoke-StartupDriftCheck 6>$null
+    Check 'profiles: a changed drift is asked again' ($script:yesNoAsked -eq 2)
+    $script:yesNoAnswer = $true
+    Install-StarterJigProfiles 6>$null
+    $baks = @(Get-ChildItem $profHome -Filter 'standard.yaml.bak-*')
+    Check 'profiles: update backs up your copy first' ($baks.Count -eq 1 -and (Get-Content $baks[0].FullName -Raw) -match 'changed again')
+    Check 'profiles: bundled version installed' ((Get-Content (Join-Path $profHome 'standard.yaml') -Raw) -match 'permission_mode: default')
+    Set-Item Function:\Get-GlobalJigProfilesDir $origGjp; Set-Item Function:\Get-PluginCacheDrift $origPcd; Set-Item Function:\Read-YesNo $origRyn
+    Remove-Item Function:\jig, Function:\Read-Host
+    $BundledJigProfilesDir = $savedBundledProf
 
     # =======================================================================
     # Skills updated from their own upstream (lib/66-sources.ps1) - local bare repo as upstream
@@ -1235,6 +1272,32 @@ try {
     # Kickoff: plan in Claude Code (Forge / vibe-check), then build in pi
     # =======================================================================
     $kickDir = Join-Path $TestRoot 'kickoff'
+    # Forge detection: the kickoff names mission-planner only when the plugin is installed.
+    $noForgeDir = Join-Path $TestRoot 'claude-home-noforge'
+    New-Item -ItemType Directory -Path (Join-Path $noForgeDir 'plugins') -Force | Out-Null
+    '{"version":2,"plugins":{"other@market":[{}]}}' | Set-Content (Join-Path (Join-Path $noForgeDir 'plugins') 'installed_plugins.json') -Encoding UTF8
+    Check 'forge: detected in installed_plugins.json' (Test-ForgeInstalled)
+    Check 'forge: other plugins only -> not installed' (-not (Test-ForgeInstalled -ClaudeDir $noForgeDir))
+    Check 'forge: no plugins file -> not installed' (-not (Test-ForgeInstalled -ClaudeDir (Join-Path $TestRoot 'nowhere')))
+    Check 'forge: kickoff names mission-planner with Forge' ((Get-ForgeKickoffPrompt 'Z' $true) -match 'mission-planner')
+    $pNo = Get-ForgeKickoffPrompt 'Z' $false
+    Check 'forge: kickoff without Forge does not name a missing skill' ($pNo -notmatch 'mission-planner' -and $pNo -match 'Plan it with me: goal' -and $pNo -match 'PLAN\.md')
+    $savedClaudeDir = $McClaudeDir; $McClaudeDir = $noForgeDir
+    Check 'forge: menu label says when Forge is missing' ((Get-KickoffPlannerLabel) -match 'Forge plugin not installed')
+    $McClaudeDir = $savedClaudeDir
+    Check 'forge: menu label with Forge' ((Get-KickoffPlannerLabel) -eq 'plan with Forge in Claude Code')
+
+    # macOS: Terminal types the launch line into a tty limited to 1024 bytes, so only a short line is typed.
+    $longCmd = "Set-Location -LiteralPath '/tmp/x'; Write-Output '" + ('k' * 1700) + "'; Write-Output 'end'"
+    $macLine = Get-MacTerminalShellCommand $longCmd
+    $launchFile = if ($macLine -match "-File '([^']+)'") { $Matches[1] } else { '' }
+    Check 'mac launch: typed line stays far below 1024 bytes' ($macLine.Length -lt 300 -and $macLine.StartsWith('pwsh -NoExit -File '))
+    Check 'mac launch: script holds the full command' ($launchFile -and (Test-Path -LiteralPath $launchFile) -and ((Get-Content -LiteralPath $launchFile -Raw).Trim() -eq $longCmd))
+    Check 'mac launch: script lives under .mission-centre/launch' ($launchFile -like "$(Join-Path $MissionStateDir 'launch')*")
+    $oldLaunch = Join-Path (Split-Path $launchFile) 'launch-oldoldoldold.ps1'
+    'old' | Set-Content $oldLaunch; (Get-Item $oldLaunch).LastWriteTime = (Get-Date).AddDays(-3)
+    [void](New-LaunchScriptFile 'Write-Output 1')
+    Check 'mac launch: launch scripts older than a day are cleaned up' (-not (Test-Path $oldLaunch))
     New-Item -ItemType Directory -Path $kickDir -Force | Out-Null
     $promptsNoDq = -not ((Get-ForgeKickoffPrompt "O'Brien") + (Get-PiBuildPrompt) + (Get-VibeOpening 'x') + (Get-PlanHandoffInstructions)).Contains('"')
     Check 'kickoff: prompts contain no double quotes (Start-Process would strip them)' $promptsNoDq

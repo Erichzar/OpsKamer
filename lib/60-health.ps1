@@ -150,28 +150,88 @@ function Get-PluginCacheDrift {
     return $results.ToArray()
 }
 
+function Test-ForgeInstalled {
+    # Is the Forge plugin (jdforsythe/forge) installed in Claude Code? Kickoffs name its mission-planner
+    # skill only when it is. $McClaudeDir overrides ~/.claude (the test suite points it at a fixture).
+    param([string]$ClaudeDir = '')
+    if (-not $ClaudeDir) {
+        $ClaudeDir = Get-Variable -Name McClaudeDir -ValueOnly -ErrorAction SilentlyContinue
+        if (-not $ClaudeDir) { $ClaudeDir = Join-Path $(if ($HOME) { $HOME } else { $env:USERPROFILE }) '.claude' }
+    }
+    $f = Join-Path (Join-Path $ClaudeDir 'plugins') 'installed_plugins.json'
+    if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { return $false }
+    try {
+        $j = Get-Content -LiteralPath $f -Raw -Encoding UTF8 | ConvertFrom-Json
+        $plugins = Get-OptionalProperty $j 'plugins' $null
+        if ($null -eq $plugins) { return $false }
+        foreach ($p in $plugins.PSObject.Properties) { if ((($p.Name -split '@')[0]) -eq 'forge') { return $true } }
+    } catch { }
+    return $false
+}
+
+function Get-JigProfileKeyWarnings {
+    # Installed profiles that set 'permission-mode:' (hyphen). Jig reads only 'permission_mode' from YAML
+    # (the hyphen form is its command-line flag), so that setting is silently ignored. Returns file names.
+    param([string]$InstalledDir)
+    if (-not (Test-Path -LiteralPath $InstalledDir -PathType Container)) { return @() }
+    return @(Get-ChildItem -LiteralPath $InstalledDir -Filter '*.yaml' -File -ErrorAction SilentlyContinue |
+        Where-Object { (Get-Content -LiteralPath $_.FullName -Raw -Encoding UTF8) -match '(?m)^\s*permission-mode\s*:' } |
+        ForEach-Object { $_.Name })
+}
+
+function Get-ProfileDriftKey {
+    # Pure: identifies one particular drift (which profiles, which status, what the installed copies hold),
+    # so a declined update is not asked again until something changes.
+    param([object[]]$Stale, [string]$InstalledDir)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $parts = foreach ($d in @($Stale | Sort-Object name)) {
+            $f = Join-Path $InstalledDir "$($d.name).yaml"
+            $h = if (Test-Path -LiteralPath $f -PathType Leaf) { [System.BitConverter]::ToString($sha.ComputeHash([System.IO.File]::ReadAllBytes($f))) } else { '-' }
+            "$($d.name)=$($d.status)=$h"
+        }
+        return (@($parts) -join ';')
+    } finally { $sha.Dispose() }
+}
+
 function Invoke-StartupDriftCheck {
     # Ambient drift detection, run once per launch before the menu. Cheap checks
     # only (file compares + dir listings - no doctors, no subprocess spawns).
     # Profile drift immediately offers the [G] update flow; plugin cache drift
     # warns with the fix (a stale cache can only be refreshed from a Claude
     # session via /plugin update). Silent when everything is clean.
-    $stale = @(Get-JigProfileDrift $BundledJigProfilesDir (Get-GlobalJigProfilesDir) |
-               Where-Object { $_.status -ne 'identical' })
-    if ($stale.Count -gt 0) {
+    # Profiles only matter when Jig is installed; without it, say nothing about them.
+    $stale = @()
+    $keyWarnings = @()
+    if (Get-Command 'jig' -ErrorAction SilentlyContinue) {
+        $installedDir = Get-GlobalJigProfilesDir
+        $stale = @(Get-JigProfileDrift $BundledJigProfilesDir $installedDir | Where-Object { $_.status -ne 'identical' })
+        $keyWarnings = @(Get-JigProfileKeyWarnings $installedDir)
+    }
+    foreach ($k in $keyWarnings) {
         Write-Host ''
-        Write-Host '  Starter profile drift detected:' -ForegroundColor Yellow
-        foreach ($d in $stale) {
-            Write-Host "   $($d.name): $($d.status)" -ForegroundColor Yellow
-        }
-        # 'differs' has inverted launch semantics before (stale vibe ran yolo instead
-        # of plan-mode), so it defaults to reviewing now; missing-only (e.g. a fresh
-        # machine or a deliberately removed starter) defaults to No.
-        $default = if (@($stale | Where-Object { $_.status -eq 'differs' }).Count -gt 0) { 'Y' } else { 'N' }
-        if (Read-YesNo '  Review and update starter profiles now?' $default) {
-            Install-StarterJigProfiles
+        Write-Host "  Jig profile $k sets 'permission-mode:', which Jig ignores (it reads 'permission_mode:')." -ForegroundColor Yellow
+        Write-Host "  Rename the key in $(Join-Path (Get-GlobalJigProfilesDir) $k) to apply that setting." -ForegroundColor DarkGray
+    }
+    if ($stale.Count -gt 0) {
+        # Ask once per drift: a declined update is remembered until the drift changes, so the prompt does
+        # not come back on every start. Default No; updates back up the installed copy first.
+        $driftKey = Get-ProfileDriftKey $stale (Get-GlobalJigProfilesDir)
+        $declinedFile = Join-Path $MissionStateDir 'profile-drift-declined.txt'
+        $declined = if (Test-Path -LiteralPath $declinedFile) { (Get-Content -LiteralPath $declinedFile -Raw).Trim() } else { '' }
+        if ($declined -ne $driftKey) {
+            Write-Host ''
+            Write-Host '  Starter profiles differ from the bundled versions:' -ForegroundColor Yellow
+            foreach ($d in $stale) { Write-Host "   $($d.name): $($d.status)" -ForegroundColor Yellow }
+            if (Read-YesNo '  Review and update them now? (your copies are backed up first)' 'N') {
+                Install-StarterJigProfiles
+            } else {
+                if (-not (Test-Path -LiteralPath $MissionStateDir)) { New-Item -ItemType Directory -Path $MissionStateDir -Force | Out-Null }
+                Set-Content -LiteralPath $declinedFile -Value $driftKey -Encoding UTF8
+                Write-Host '  Kept yours. Not asked again until they change; [H] shows the drift, [G] updates.' -ForegroundColor DarkGray
+            }
         } else {
-            Write-Host '  Skipped. [H] shows drift details; [G] updates profiles.' -ForegroundColor DarkGray
+            $stale = @()   # already declined: no pause below
         }
     }
 
@@ -185,7 +245,7 @@ function Invoke-StartupDriftCheck {
         Write-Host "  Run /plugin update $((($p.plugin) -split '@')[0]) in a Claude session to refresh." -ForegroundColor DarkGray
     }
 
-    if ($stale.Count -gt 0 -or $pluginDrift.Count -gt 0) {
+    if ($stale.Count -gt 0 -or $pluginDrift.Count -gt 0 -or $keyWarnings.Count -gt 0) {
         Read-Host '  Press Enter to continue'
     }
 }
@@ -271,6 +331,10 @@ function Invoke-EnvironmentHealth {
             Write-Host "   $($d.name): $($d.status) - run [G] to review/update" -ForegroundColor Yellow
         }
     }
+    foreach ($k in @(Get-JigProfileKeyWarnings (Get-GlobalJigProfilesDir))) {
+        Write-Host "   ${k}: sets 'permission-mode:', which Jig ignores - rename it to 'permission_mode:'" -ForegroundColor Yellow
+    }
+    Write-Host "   Forge plugin (kickoff planning): $(if (Test-ForgeInstalled) { 'installed' } else { 'not installed - kickoffs plan in plain Claude Code' })" -ForegroundColor DarkGray
 
     $pluginDrift = @(Get-PluginCacheDrift)
     if ($pluginDrift.Count -gt 0) {

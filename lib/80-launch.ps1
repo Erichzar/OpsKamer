@@ -42,6 +42,28 @@ function New-MetaMissionBrief {
     return $briefPath
 }
 
+function New-LaunchScriptFile {
+    # Write a launch command to a short-lived script under .mission-centre/launch and return its path.
+    # macOS Terminal's `do script` TYPES the command into the new tty, and a typed line is limited to
+    # MAX_CANON (1024 bytes): longer launches (the kickoff is ~1650 characters) were cut off mid-word and
+    # nothing ran. Typing only `pwsh -File <short path>` keeps the line short. Files older than a day go.
+    param([string]$Command)
+    $dir = Join-Path $MissionStateDir 'launch'
+    if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+    Get-ChildItem -LiteralPath $dir -Filter 'launch-*.ps1' -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-1) } |
+        Remove-Item -Force -ErrorAction SilentlyContinue
+    $path = Join-Path $dir ('launch-{0}.ps1' -f [guid]::NewGuid().ToString('N').Substring(0, 12))
+    [System.IO.File]::WriteAllText($path, $Command + "`n", (New-Object System.Text.UTF8Encoding $true))
+    return $path
+}
+
+function Get-MacTerminalShellCommand {
+    # The line typed into Terminal.app: a short `pwsh -NoExit -File '<launch script>'`, never the full command.
+    param([string]$PsCommand)
+    return "pwsh -NoExit -File $(ConvertTo-PosixQuotedString (New-LaunchScriptFile $PsCommand))"
+}
+
 function Start-TerminalCommand {
     param([string]$WorkingDirectory, [string]$Command)
 
@@ -71,7 +93,7 @@ function Start-TerminalCommand {
             Write-MissionLog 'ERROR' $msg
             return
         }
-        $shellCommand = "pwsh -NoExit -Command $(ConvertTo-PosixQuotedString $psCommand)"
+        $shellCommand = Get-MacTerminalShellCommand $psCommand
         $escaped = $shellCommand.Replace('\', '\\').Replace('"', '\"')
         $appleScript = 'tell application "Terminal" to do script "' + $escaped + '"'
         Write-MissionLog 'INFO' "Launching via osascript: $shellCommand"
@@ -299,10 +321,20 @@ function Get-PlanHandoffInstructions {
 }
 
 function Get-ForgeKickoffPrompt {
-    param([string]$Name)
+    # Names Forge's mission-planner skill only when the Forge plugin is installed; otherwise Claude would
+    # be told to use a skill that does not exist, so it plans the same steps without it.
+    param([string]$Name, [object]$Forge = $null)
+    if ($null -eq $Forge) { $Forge = Test-ForgeInstalled }
+    $how = if ($Forge) { 'Use the mission-planner skill to plan it with me' } else { 'Plan it with me' }
     return ("You are starting a project called '$Name'. Read CLAUDE.md if present. " +
-        'Use the mission-planner skill to plan it with me: goal, scope, tech stack and the first implementation steps. ' +
+        "${how}: goal, scope, tech stack and the first implementation steps. " +
         (Get-PlanHandoffInstructions))
+}
+
+function Get-KickoffPlannerLabel {
+    # Menu text for the planning half of a kickoff.
+    if (Test-ForgeInstalled) { return 'plan with Forge in Claude Code' }
+    return 'plan in Claude Code (Forge plugin not installed)'
 }
 
 function Get-VibeOpening {
@@ -359,7 +391,10 @@ function Start-KickoffThenPi {
     $piFull = New-PiCommand -PiArgs @('--name', (New-MissionName $Name), (Get-PiBuildPrompt)) -Command $piCmd
 
     $how = if ($jig) { "jig run $planProfile" } else { 'Claude Code (Jig not found)' }
-    $plannerName = if ($Planner -eq 'vibe') { 'vibe-check' } else { 'Forge' }
+    $plannerName = if ($Planner -eq 'vibe') { 'vibe-check' } elseif (Test-ForgeInstalled) { 'Forge' } else { 'plain Claude Code (Forge plugin not installed)' }
+    if ($Planner -ne 'vibe' -and -not (Test-ForgeInstalled)) {
+        Write-Host '  Tip: the Forge plugin plans better. In Claude Code: /plugin marketplace add jdforsythe/forge  then  /plugin install forge@forge' -ForegroundColor DarkGray
+    }
     Write-Host "  Kickoff: planning with $plannerName in $how." -ForegroundColor Magenta
     Write-Host "  When the plan is saved to $(Get-KickoffPlanFileName), exit Claude (/exit): the same window offers to start pi." -ForegroundColor DarkGray
     Start-TerminalCommand $ProjectPath (New-KickoffThenPiCommand $claudeCmd $piFull)
@@ -380,7 +415,7 @@ function Start-PiNewMission {
     }
     Write-Host ''
     Write-Host "  This project has no $(Get-KickoffPlanFileName) yet." -ForegroundColor Cyan
-    Write-Host '  [K]      Kickoff first: plan with Forge in Claude Code, then build in pi' -ForegroundColor Magenta
+    Write-Host "  [K]      Kickoff first: $(Get-KickoffPlannerLabel), then build in pi" -ForegroundColor Magenta
     Write-Host '  [Enter]  Start pi now (this project will not be asked again)'          -ForegroundColor Green
     $choice = (Read-Host '  Choice').Trim().ToUpperInvariant()
     if ($choice -eq 'K') {
@@ -487,7 +522,8 @@ function Start-MetaMission {
     foreach ($p in $selected) {
         $claudeArgs += @('--add-dir', $p.path)
     }
-    $claudeArgs += "Use the mission brief at $briefPath. Begin with Forge mission planning for this goal: $goal"
+    $planWith = if (Test-ForgeInstalled) { 'Begin with Forge mission planning for this goal' } else { 'Begin by planning this goal with me' }
+    $claudeArgs += "Use the mission brief at $briefPath. ${planWith}: $goal"
 
     if (Get-Command 'jig' -ErrorAction SilentlyContinue) {
         if (-not (Invoke-ProfilePreflight $ScanRoot $MetaProfile)) { return }

@@ -335,7 +335,7 @@ function Show-LaunchMenu {
     if ($DefaultEngine -eq 'pi') {
         $needsKickoff = -not (Test-ProjectHasPlan $Project.path) -and [string](Get-OptionalProperty $Project 'kickoff' '') -ne 'skipped'
         if ($needsKickoff) {
-            Write-Host "  [L]  New mission (pi)      - no $(Get-KickoffPlanFileName) yet: offers a Forge kickoff first" -ForegroundColor Green
+            Write-Host "  [L]  New mission (pi)      - no $(Get-KickoffPlanFileName) yet: offers a kickoff (plan, then build) first" -ForegroundColor Green
         } else {
             Write-Host "  [L]  New mission (pi)      - $(Get-PiModelLabel), profile $profileName" -ForegroundColor Green
         }

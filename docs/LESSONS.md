@@ -74,6 +74,9 @@ are written into the code as comments next to the fix; this page collects them.
   `Permission denied`. Set it in git (`git update-index --chmod=+x <file>`) and have CI check it.
 - **Check install commands on the real platform.** A Homebrew cask that once existed (`--cask powershell`)
   was gone; the formula (`brew install powershell`) is what works now.
+- **macOS Terminal types a launch command, and a typed line is capped at 1024 bytes** (`MAX_CANON`).
+  `do script` with a long command (the kickoff is about 1650 characters) was cut off mid-word and nothing
+  ran. Write the command to a script file and type only `pwsh -File <path>`.
 - **Common ports get squatted.** A vendor utility held a port the local server wanted. Check who owns a port
   before using it, and make the port configurable.
 
@@ -84,6 +87,9 @@ are written into the code as comments next to the fix; this page collects them.
   when it has no live parent and no recent activity.
 - **Defer restarts while requests are in flight.** Restarting a local service mid-reply cuts off every
   session using it. Try again at the next launch.
+- **Don't nag, and don't default to overwriting.** A start-up prompt that defaulted to *yes* replaced
+  hand-tuned profiles without a backup. Default to *no*, back up first, ask once per change, and stay quiet
+  about tools that aren't installed.
 - **Back up before every change** (`*.bak-<timestamp>`), and never treat backups as clean-up candidates.
 - **Check secrets by location and permissions only.** Never read or print them.
 
