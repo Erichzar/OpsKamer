@@ -325,7 +325,7 @@ Project menu:
 - `R#`: resume a recent Claude Code session.
 - `PI` / `PC` / `PR`: new mission, continue latest, or resume picker with pi, shown only when `pi.enabled` is true.
 - `P`: validate the saved Jig profile and dry-run the launch.
-- `X`: show context health and offer setup for `CLAUDE.md`. Context health shows `CLAUDE.md` (Claude Code reads only this) and `AGENTS.md` (pi reads this and falls back to `CLAUDE.md`). It also shows the **check command**, the command in either file that proves a change works, such as `npm test`. Without one an agent can only claim it's done. When a project has only `AGENTS.md`, setup offers a one-line `CLAUDE.md` containing `@AGENTS.md`, so both agents read the same file.
+- `X`: show context health and offer setup for `CLAUDE.md`. Context health shows `CLAUDE.md` (Claude Code reads only this) and `AGENTS.md` (pi reads this and falls back to `CLAUDE.md`). It also shows the **check command**, the command in either file that proves a change works, such as `npm test`. Without one an agent can only claim it's done. A project with nothing to run, such as notes or documents, can say `Verify: none (why)`, which shows as "none needed" instead of a warning. When a project has only `AGENTS.md`, setup offers a one-line `CLAUDE.md` containing `@AGENTS.md`, so both agents read the same file.
 - `E`: open the folder.
 - `RN`: edit the display name, description, or profile without moving the folder.
 - `Z`: make the project dormant, or reactivate it if it already is (stored as `dormant`/`dormantSince` on its `projects.json` entry).

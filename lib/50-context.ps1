@@ -127,7 +127,8 @@ function Get-VerifyCommandStatus {
     # CLAUDE.md). Without one an agent can only claim it's done. A line counts when it sits under a heading
     # about commands, verifying or testing, or starts with 'verify:', 'test:' or 'check:', and holds a
     # backticked command that isn't a placeholder.
-    # Returns status 'found' (with command + file), 'placeholder' (slot left unfilled) or 'missing'.
+    # Returns status 'found' (with command + file), 'none' ('Verify: none (why)': nothing to check, the
+    # reason is in .command), 'placeholder' (slot left unfilled) or 'missing'.
     param([string]$ProjectPath)
 
     # 'bevele' / 'vul in' are Afrikaans for 'commands' / 'fill in' (some users' own templates).
@@ -135,7 +136,9 @@ function Get-VerifyCommandStatus {
     $keyLineRe = '(?i)^\s*(?:[-*]\s*)?(?:\*\*)?(?:verify|test|tests|check)(?:\*\*)?\s*:'
     $placeholderRe = '(?i)\bTODO\b|<[^>`]+>|add build, test|vul in'
     $testRunnerRe = '(?i)\btest\b|pytest|run-tests|\bcheck\b|\bvitest\b|\bjest\b|\blint\b'
+    $noneRe = '(?i)^\s*(?:[-*]\s*)?(?:\*\*)?verify(?:\*\*)?\s*:\s*(?:none|n/a)\b(.*)$'
     $sawPlaceholder = $false
+    $noneReason = $null; $noneFile = $null
 
     foreach ($name in @('AGENTS.md', 'CLAUDE.md')) {
         $file = Join-Path $ProjectPath $name
@@ -155,6 +158,8 @@ function Get-VerifyCommandStatus {
 
             # A placeholder anywhere on the line wins, so 'Verify: TODO, e.g. `npm test`' isn't a command.
             if ($line -match $placeholderRe) { $sawPlaceholder = $true; continue }
+            # 'Verify: none (documents only)' is a decision, not a gap: there is no code to check.
+            if ($line -match $noneRe) { $noneReason = $Matches[1].Trim(' ', '-', '(', ')', '.'); $noneFile = $name; continue }
             $cmd = $null
             if ($inFence) { if (Test-CommandLike $line) { $cmd = $line.Trim() } }
             else { $cmd = Get-BacktickCommands $line | Select-Object -First 1 }
@@ -174,6 +179,7 @@ function Get-VerifyCommandStatus {
             }
         }
     }
+    if ($null -ne $noneFile) { return [pscustomobject]@{ status = 'none'; command = $noneReason; file = $noneFile } }
     $status = if ($sawPlaceholder) { 'placeholder' } else { 'missing' }
     return [pscustomobject]@{ status = $status; command = $null; file = $null }
 }
@@ -213,6 +219,9 @@ function Write-ContextHealth {
     $v = $health.verify
     if ($v.status -eq 'found') {
         Write-Host "   check command      : $($v.command) ($($v.file))" -ForegroundColor DarkGreen
+    } elseif ($v.status -eq 'none') {
+        $why = if ($v.command) { " - $($v.command)" } else { '' }
+        Write-Host "   check command      : none needed$why ($($v.file))" -ForegroundColor DarkGray
     } else {
         $what = if ($v.status -eq 'placeholder') { 'placeholder' } else { 'missing' }
         Write-Host "   check command      : $what - add the command that proves a change works, or agents can only claim they're done" -ForegroundColor Yellow
