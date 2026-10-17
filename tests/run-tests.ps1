@@ -1457,9 +1457,13 @@ try {
     Check 'verify: fenced block under Verify, comment skipped' ((Get-VerifyCommandStatus $d).command -eq 'pytest -q')
     $d = New-VerifyFixture 'rules' @{ 'AGENTS.md' = "## Rules`n- Run the tests before a PR: ``pwsh -File tests/run-tests.ps1```n" }
     Check 'verify: test command elsewhere in the file (fallback)' ((Get-VerifyCommandStatus $d).command -eq 'pwsh -File tests/run-tests.ps1')
+    $d = New-VerifyFixture 'assign' @{ 'AGENTS.md' = "- Verify: ``T=`$(mktemp -d) && ./tool -n `$T`` - must print ``2024.03.12 a.txt```n" }
+    Check 'verify: a command starting with VAR= counts, the expected output after it does not' ((Get-VerifyCommandStatus $d).command -eq 'T=$(mktemp -d) && ./tool -n $T')
     $d = New-VerifyFixture 'docs-only' @{ 'AGENTS.md' = "## Verify`n- Verify: none (documents only, no code)`n" }
     $vn = Get-VerifyCommandStatus $d
     Check 'verify: explicit none is a decision, with its reason' ($vn.status -eq 'none' -and $vn.command -eq 'documents only, no code')
+    $d = New-VerifyFixture 'none-more' @{ 'CLAUDE.md' = "- Verify: none (not built yet). Each step has a check.`n" }
+    Check 'verify: none reason is the text in brackets' ((Get-VerifyCommandStatus $d).command -eq 'not built yet')
     $d = New-VerifyFixture 'none-then-cmd' @{ 'AGENTS.md' = "- Verify: none`n## Commands`n- ``make test```n" }
     Check 'verify: a real command beats verify none' ((Get-VerifyCommandStatus $d).status -eq 'found')
     $d = New-VerifyFixture 'pointer' @{ 'AGENTS.md' = '# x' }

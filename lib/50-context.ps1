@@ -119,6 +119,8 @@ function Test-CommandLike {
     # a CSV header or prose punctuation.
     param([string]$Text)
     $first = ($Text.Trim() -split '\s+')[0]
+    # 'T=$(mktemp -d) && x' and 'FOO="a b" x' start with an assignment, which is still a command.
+    if ($first -match '^[A-Za-z_][A-Za-z0-9_]*=') { return $true }
     return ($first -match '^[A-Za-z0-9_.~/$\\][A-Za-z0-9_.~/$\\:=+-]*$')
 }
 
@@ -159,7 +161,11 @@ function Get-VerifyCommandStatus {
             # A placeholder anywhere on the line wins, so 'Verify: TODO, e.g. `npm test`' isn't a command.
             if ($line -match $placeholderRe) { $sawPlaceholder = $true; continue }
             # 'Verify: none (documents only)' is a decision, not a gap: there is no code to check.
-            if ($line -match $noneRe) { $noneReason = $Matches[1].Trim(' ', '-', '(', ')', '.'); $noneFile = $name; continue }
+            if ($line -match $noneRe) {
+                $rest = $Matches[1].Trim()
+                $noneReason = if ($rest -match '^\(([^)]*)\)') { $Matches[1].Trim() } else { $rest.Trim(' ', '-', '.') }
+                $noneFile = $name; continue
+            }
             $cmd = $null
             if ($inFence) { if (Test-CommandLike $line) { $cmd = $line.Trim() } }
             else { $cmd = Get-BacktickCommands $line | Select-Object -First 1 }
