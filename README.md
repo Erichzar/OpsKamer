@@ -28,7 +28,7 @@ git clone https://github.com/bflutz/OpsKamer ~/Tools/OpsKamer
 cd ~/Tools/OpsKamer
 bash launch.sh                 # first run asks for your projects folder; press Q to quit afterwards
 ./pi/scripts/bootstrap.sh      # optional: install pi
-pwsh ./setup.ps1               # check tools, switch on the pi engine
+pwsh ./setup.ps1               # check tools; asks: pi as default? auto updates? pi from source?
 bash launch.sh
 ```
 

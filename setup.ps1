@@ -18,10 +18,16 @@
 .PARAMETER Model
     pi model id (e.g. claude-sonnet-5). Default: none (pi's own defaultModel).
 .PARAMETER PiDefault
-    Make pi the default engine for the single-letter launch keys ([L]/[C]/[R]). Without it,
-    those keys keep launching Claude Code and pi stays on [PI]/[PC]/[PR].
+    Make pi the default engine for the single-letter launch keys ([L]/[C]/[R]); Claude Code moves
+    to [CL]/[CC]/[CR]. Without it, setup asks (when pi is installed).
 .PARAMETER WithFork
-    Also set up a pi fork from source as `pii`.
+    Also set up a pi fork from source as `pii`. Without it, setup asks (default no). An already
+    configured fork is kept and maintained on every re-run.
+.PARAMETER AutoUpdate
+    'auto' installs updates without asking, 'check' asks first. Without it, setup asks.
+.PARAMETER RegistryUrl
+    Git URL of a PRIVATE repo you own for the shared project list (same projects on every device).
+    Without it, setup asks (default no).
 .PARAMETER ForkUrl
     Git URL of the fork. Default: https://github.com/leo-labs-ai/pi-mono.git
 .PARAMETER ForkPath
@@ -37,6 +43,8 @@ param(
     [string]$Model = '',
     [switch]$PiDefault,
     [switch]$WithFork,
+    [ValidateSet('', 'auto', 'check')][string]$AutoUpdate = '',
+    [string]$RegistryUrl = '',
     [string]$ForkUrl = 'https://github.com/leo-labs-ai/pi-mono.git',
     [string]$ForkPath = '',
     [switch]$Yes
@@ -55,10 +63,11 @@ function Step($m) { Write-Host ''; Write-Host "== $m" -ForegroundColor Cyan }
 function Ok($m)   { Write-Host "   ok   $m" -ForegroundColor Green }
 function Info($m) { Write-Host "        $m" -ForegroundColor DarkGray }
 function Warn($m) { Write-Host "   WARN $m" -ForegroundColor Yellow; $script:Problems.Add($m) }
-function Confirm-Step([string]$Question) {
-    if ($Yes) { return $true }
-    $a = Read-Host "   $Question [Y/n]"
-    return ($a -notmatch '^\s*[nN]')
+function Confirm-Step([string]$Question, [switch]$DefaultNo) {
+    # -Yes answers yes, except to default-no questions (big clones, sharing): those stay explicit.
+    if ($Yes) { return (-not $DefaultNo) }
+    if ($DefaultNo) { return ((Read-Host "   $Question [y/N]") -match '^\s*[yY]') }
+    return ((Read-Host "   $Question [Y/n]") -notmatch '^\s*[nN]')
 }
 function Test-Cmd([string]$Name) { return [bool](Get-Command $Name -ErrorAction SilentlyContinue) }
 
@@ -146,6 +155,48 @@ if ($effective -eq 'anthropic' -and -not $env:ANTHROPIC_API_KEY -and -not (Test-
 $config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
 $scanRoot = Resolve-Home ([string]$config.scanRoot)
 $forkReady = $null
+
+# ---------------------------------------------------------------------------------------------
+Step 'Choices'
+$tuCfg = if ($config.PSObject.Properties['toolUpdates']) { $config.toolUpdates } else { $null }
+$pfCfg = if ($tuCfg -and $tuCfg.PSObject.Properties['piFork']) { $tuCfg.piFork } else { $null }
+
+# Default engine.
+$curEngine = if ($config.PSObject.Properties['defaultEngine']) { [string]$config.defaultEngine } else { 'claude' }
+$makePiDefault = [bool]$PiDefault
+if ($curEngine -eq 'pi') { Ok 'pi is the default engine ([L]/[C]/[R] start pi)'; $makePiDefault = $true }
+elseif (-not $makePiDefault -and (Test-Cmd 'pi')) {
+    $makePiDefault = Confirm-Step 'Make pi the default engine? [L]/[C]/[R] then start pi; Claude Code moves to [CL]/[CC]/[CR]'
+}
+
+# Updates.
+$curMode = if ($tuCfg -and $tuCfg.PSObject.Properties['mode']) { [string]$tuCfg.mode } else { '' }
+$updMode = $AutoUpdate
+if (-not $updMode) {
+    if ($curMode -eq 'auto') { $updMode = 'auto'; Ok 'updates install automatically' }
+    elseif (Confirm-Step 'Install updates automatically, without asking each time? (Mission Centre, Claude Code, pi; checked at most daily)') { $updMode = 'auto' }
+    else { $updMode = 'check' }
+}
+
+# pi from source: keep a fork that is already configured; otherwise ask.
+$forkConfigured = $pfCfg -and $pfCfg.PSObject.Properties['enabled'] -and $pfCfg.enabled -and $pfCfg.PSObject.Properties['repoPath'] -and $pfCfg.repoPath
+if ($forkConfigured -and -not $WithFork) {
+    $WithFork = $true
+    if (-not $ForkPath) { $ForkPath = [string]$pfCfg.repoPath }
+    Ok "pi from source (pii) is set up at $ForkPath; keeping it"
+} elseif (-not $WithFork) {
+    $WithFork = Confirm-Step 'Also run pi from source as pii (a fork such as leo-labs-ai/pi-mono; large clone, for advanced use)?' -DefaultNo
+}
+
+# Shared project list across devices: needs a private repo the user owns.
+$ssCfg = if ($config.PSObject.Properties['sharedState']) { $config.sharedState } else { $null }
+$curRemote = if ($ssCfg -and $ssCfg.PSObject.Properties['remote']) { [string]$ssCfg.remote } else { '' }
+$registry = $RegistryUrl
+if (-not $registry -and $curRemote -and $ssCfg.enabled) { Ok "shared project list: $curRemote" }
+elseif (-not $registry -and (Confirm-Step 'Keep the same project list on several computers? Needs a PRIVATE git repo you own' -DefaultNo)) {
+    $registry = (Read-Host '   Git URL of that private repo (e.g. https://github.com/<you>/<repo>.git)').Trim()
+}
+
 if ($WithFork) {
     Step "pi fork from source (pii): $ForkUrl"
     if (-not $ForkPath) { $ForkPath = Join-Path $scanRoot 'pi-mono' }
@@ -191,11 +242,24 @@ if ($WithFork) {
                     '  exit 1', 'fi', 'exec node "$PII_CLI" "$@"') -join "`n") + "`n"
             }
             $cur = if (Test-Path -LiteralPath $piiPath) { [System.IO.File]::ReadAllText($piiPath) } else { '' }
-            if ($cur -ne $body) {
+            # A launcher that already runs this build is left alone, whoever wrote it.
+            $sameBuild = $cur -and $cur.Contains($cli)
+            # Never rewrite a launcher that is running: cmd.exe reads a batch file by byte offset as it
+            # goes, so a pii session started from the old file would continue in the new one on exit.
+            $running = @()
+            if ($cur -and $IsWin) {
+                $running = @(Get-CimInstance Win32_Process -Filter "Name = 'cmd.exe'" -ErrorAction SilentlyContinue |
+                    Where-Object { [string]$_.CommandLine -like "*$piiPath*" })
+            }
+            if ($cur -eq $body -or $sameBuild) { Ok "pii launcher in place: $piiPath" }
+            elseif ($running.Count -gt 0) {
+                Warn "$piiPath points elsewhere but $($running.Count) pii session(s) are running from it; close them and re-run to update it."
+            } else {
+                if ($cur) { Backup $piiPath }
                 [System.IO.File]::WriteAllText($piiPath, $body)
                 if (-not $IsWin) { & chmod +x $piiPath }
                 Ok "pii launcher: $piiPath"
-            } else { Ok 'pii launcher in place' }
+            }
             if (-not (Test-Path -LiteralPath $cli)) { Info 'pii is not built yet: Mission Centre builds it on the first pi launch (several minutes).' }
         } else { Warn 'npm prefix not found - pii launcher not written' }
     }
@@ -206,18 +270,20 @@ Step "Mission Centre config ($ConfigPath)"
 $before = Get-Content -LiteralPath $ConfigPath -Raw
 $pi = Get-Child $config 'pi'
 Set-Prop $pi 'enabled' $true
-Set-Prop $pi 'command' $(if ($forkReady) { 'pii' } else { 'pi' })
+# pii only when the fork is ready now; keep an existing pii when its build simply was not checked this run.
+$curCmd = if ($pi.PSObject.Properties['command']) { [string]$pi.command } else { '' }
+Set-Prop $pi 'command' $(if ($forkReady) { 'pii' } elseif ($curCmd -eq 'pii' -and $WithFork) { 'pii' } else { 'pi' })
 # Only an explicit -Provider / -Model changes them; otherwise keep what is there (empty = pi's own).
 if ($PSBoundParameters.ContainsKey('Provider')) { Set-Prop $pi 'provider' $Provider }
 elseif (-not $pi.PSObject.Properties['provider']) { Set-Prop $pi 'provider' '' }
 if ($PSBoundParameters.ContainsKey('Model')) { Set-Prop $pi 'model' $Model }
 elseif (-not $pi.PSObject.Properties['model']) { Set-Prop $pi 'model' '' }
 $piLabel = if ($pi.provider -or $pi.model) { (@($pi.provider, $pi.model) | Where-Object { $_ }) -join '/' } else { "pi's own settings" }
-if ($PiDefault) { Set-Prop $config 'defaultEngine' 'pi' }
+if ($makePiDefault) { Set-Prop $config 'defaultEngine' 'pi' }
 
 $tu = Get-Child $config 'toolUpdates'
 Set-Prop $tu 'enabled' $true
-if (-not $tu.PSObject.Properties['mode']) { Set-Prop $tu 'mode' 'check' }
+Set-Prop $tu 'mode' $updMode
 Set-Prop $tu 'includeClaudeCode' $true
 Set-Prop $tu 'checkPiOnLaunch' $true
 if (-not $tu.PSObject.Properties['intervalHours']) { Set-Prop $tu 'intervalHours' 24 }
@@ -231,6 +297,13 @@ if ($forkReady) {
     Set-Prop $pf 'fallbackCommand' 'pi'
 }
 Set-Prop (Get-Child $config 'selfUpdate') 'enabled' $true
+if ($registry) {
+    $ss = Get-Child $config 'sharedState'
+    Set-Prop $ss 'enabled' $true
+    Set-Prop $ss 'remote' $registry
+    if (-not $ss.PSObject.Properties['sshKey']) { Set-Prop $ss 'sshKey' '' }
+    Info 'shared project list: Mission Centre syncs it at the next launch (git must reach the repo without a prompt, e.g. gh auth login)'
+}
 if (-not $config.PSObject.Properties['deviceName'] -or -not $config.deviceName) {
     Set-Prop $config 'deviceName' $(if ($env:COMPUTERNAME) { $env:COMPUTERNAME } else { [Environment]::MachineName })
 }
@@ -239,7 +312,7 @@ $after = $config | ConvertTo-Json -Depth 20
 if (($before -replace '\s', '') -ne ($after -replace '\s', '')) {
     Backup $ConfigPath
     $after | Set-Content -LiteralPath $ConfigPath -Encoding UTF8
-    Ok "config.json updated: pi engine ($piLabel)$(if ($PiDefault) { ', pi is the default engine' }), tool updates, self-update"
+    Ok "config.json updated: pi engine ($piLabel)$(if ($makePiDefault) { ', pi is the default engine' }), updates: $updMode, self-update$(if ($registry) { ', shared project list' })"
 } else { Ok 'config.json already up to date' }
 
 # ---------------------------------------------------------------------------------------------

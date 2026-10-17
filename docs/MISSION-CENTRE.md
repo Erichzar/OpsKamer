@@ -541,9 +541,19 @@ powershell -ExecutionPolicy Bypass -File .\setup.ps1      # Windows
 ```
 
 It checks git, Node, Claude Code, Jig and the Forge plugin; installs pi if you agree; warns when pi has no
-model access yet; and writes the pi settings into `config.json`. Options: `-Provider`, `-Model`,
-`-PiDefault` (make pi the default engine), `-WithFork` (pi from source as `pii`), `-Yes`. It backs up every
-file it changes, and re-running only fixes drift. After that, every launch keeps the device current.
+model access yet; then asks four questions and writes the answers into `config.json`:
+
+| Question | Default | Flag |
+|---|---|---|
+| Make pi the default engine? (`[L]`/`[C]`/`[R]` start pi; Claude Code on `[CL]`/`[CC]`/`[CR]`) | yes, when pi is installed | `-PiDefault` |
+| Install updates automatically, without asking? | yes | `-AutoUpdate auto` or `check` |
+| Also run pi from source as `pii` (a fork)? | no | `-WithFork` (`-ForkUrl`, `-ForkPath`) |
+| Same project list on several computers? (needs a private repo you own) | no | `-RegistryUrl <url>` |
+
+`-Yes` accepts the defaults without asking. Settings you already have (pi as default, a fork, a
+registry) are kept on every re-run. It backs up every file it changes, never rewrites a `pii` launcher
+that pi sessions are running from, and re-running only fixes drift. After that, every launch keeps the
+device current.
 
 ## Optional: Same Projects on Every Device
 
