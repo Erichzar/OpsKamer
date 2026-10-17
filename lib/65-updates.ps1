@@ -303,6 +303,44 @@ function Update-NpmGlobalPackage {
     return $result
 }
 
+function Get-NpmPackageCommandName {
+    # The CLI command a known npm package installs (for 'which one is on PATH' hints); '' when unknown.
+    param([string]$Package)
+    $known = @{ '@earendil-works/pi-coding-agent' = 'pi' }
+    if ($known.ContainsKey($Package)) { return $known[$Package] }
+    return ''
+}
+
+function Get-ToolUpdateReportLines {
+    # Pure: the [U] report when nothing is behind. Says "up to date" only about packages that are
+    # actually installed with npm. A package that is not installed but whose command is on PATH (pi from
+    # another package, a fork, a source build) is called out: npm updates cannot reach that copy.
+    # -FindCommand: { param($Name) -> path or '' }. Returns @{ text; color } rows. Unit tested.
+    param([object[]]$Rows, [string]$Label, [scriptblock]$FindCommand)
+    $out = [System.Collections.Generic.List[object]]::new()
+    $rowsArr = @($Rows)
+    $installed = @($rowsArr | Where-Object { $_.installed })
+    $header = if ($installed.Count -eq $rowsArr.Count) { "  $Label up to date" }
+              elseif ($installed.Count -gt 0) { "  ${Label}: the npm packages that are installed are up to date" }
+              else { "  ${Label}: nothing here is installed with npm, so there is nothing to update" }
+    $out.Add(@{ text = $header; color = $(if ($installed.Count -eq $rowsArr.Count) { 'DarkGreen' } else { 'DarkGray' }) })
+    foreach ($r in $rowsArr) {
+        if ($r.installed) {
+            $out.Add(@{ text = ("   {0}: {1}" -f $r.package, $r.installed); color = 'DarkGray' })
+            continue
+        }
+        $cmd = Get-NpmPackageCommandName $r.package
+        $src = if ($cmd -and $FindCommand) { [string](& $FindCommand $cmd) } else { '' }
+        if ($src) {
+            $out.Add(@{ text = ("   {0}: not installed with npm. The '{1}' on PATH ({2}) comes from elsewhere;" -f $r.package, $cmd, $src); color = 'Yellow' })
+            $out.Add(@{ text = "      update it the way you installed it, or set toolUpdates.packages/piPackages to match it."; color = 'Yellow' })
+        } else {
+            $out.Add(@{ text = ("   {0}: not installed (npm i -g {0})" -f $r.package); color = 'Yellow' })
+        }
+    }
+    return $out.ToArray()
+}
+
 function Get-ToolUpdateStatus {
     # Probe configured packages and report which are behind. Honors the throttle
     # cache unless -Force. Returns one row per package.
@@ -733,10 +771,9 @@ function Invoke-ToolUpdateCheck {
     if ($behind.Count -eq 0) {
         if ($Force) {
             Write-Host ''
-            Write-Host "  $Label up to date" -ForegroundColor DarkGreen
-            foreach ($r in $rows) {
-                $shown = if ($r.installed) { $r.installed } else { 'not installed' }
-                Write-Host ("   {0}: {1}" -f $r.package, $shown) -ForegroundColor DarkGray
+            $finder = { param($Name) $c = Get-Command $Name -CommandType Application, ExternalScript -ErrorAction SilentlyContinue | Select-Object -First 1; if ($c) { [string]$c.Source } else { '' } }
+            foreach ($line in (Get-ToolUpdateReportLines -Rows $rows -Label $Label -FindCommand $finder)) {
+                Write-Host $line.text -ForegroundColor $line.color
             }
             if ($IncludeClaudeCode) { [void](Update-ClaudeCode) }
         }

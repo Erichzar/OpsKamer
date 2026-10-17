@@ -660,6 +660,21 @@ try {
         Skip 'upd: npm executable resolution' 'npm not on PATH'
     }
 
+    # [U] report with nothing behind: "up to date" only for what npm actually installed. A pi from
+    # another package (or a source build) on PATH must not read as current.
+    $pkgPi = '@earendil-works/pi-coding-agent'
+    $noCmd = { param($n) '' }
+    $hasPi = { param($n) if ($n -eq 'pi') { '/opt/homebrew/bin/pi' } else { '' } }
+    $rep = @(Get-ToolUpdateReportLines -Rows @([PSCustomObject]@{ package = $pkgPi; installed = '1.3.0' }) -Label 'Toolchain' -FindCommand $noCmd)
+    Check 'upd report: all installed -> up to date' ($rep[0].text -eq '  Toolchain up to date' -and $rep[1].text -match '1\.3\.0')
+    $rep = @(Get-ToolUpdateReportLines -Rows @([PSCustomObject]@{ package = $pkgPi; installed = '' }) -Label 'Toolchain' -FindCommand $hasPi)
+    Check 'upd report: nothing installed -> never says up to date' ($rep[0].text -notmatch 'up to date' -and $rep[0].text -match 'nothing here is installed')
+    Check 'upd report: pi from elsewhere on PATH is called out' (@($rep | Where-Object { $_.text -match "The 'pi' on PATH \(/opt/homebrew/bin/pi\) comes from elsewhere" }).Count -eq 1)
+    $rep = @(Get-ToolUpdateReportLines -Rows @([PSCustomObject]@{ package = $pkgPi; installed = '' }) -Label 'Toolchain' -FindCommand $noCmd)
+    Check 'upd report: missing and not on PATH -> install hint' ($rep[1].text -match 'not installed \(npm i -g @earendil-works/pi-coding-agent\)')
+    $rep = @(Get-ToolUpdateReportLines -Rows @([PSCustomObject]@{ package = $pkgPi; installed = '1.3.0' }, [PSCustomObject]@{ package = 'other-cli'; installed = '' }) -Label 'Toolchain' -FindCommand $noCmd)
+    Check 'upd report: partly installed -> qualified header' ($rep[0].text -match 'the npm packages that are installed are up to date')
+
     # Update-ClaudeCode must not report "current" unless Claude says so. A stale Claude
     # Code silently loses access to new models, so failures must be visible.
     # A function named `claude` shadows the real CLI - nothing is updated.

@@ -16,6 +16,9 @@ are written into the code as comments next to the fix; this page collects them.
   package silently skips every other update.
 - **`latest` is not always installable.** A dist-tag can point at a version the registry cannot serve yet.
   Fall back to the newest version that is actually published.
+- **"Up to date" must mean installed.** The update report said "up to date" while listing pi as not
+  installed, because that pi came from another package. Only claim it for what you actually manage, and
+  say where an unmanaged copy on PATH comes from.
 - **A failure must stay visible.** A throttled check that only warns once hid a fork that fell 100+ commits
   behind. Save the failure as a note and repeat it on every launch until a later check clears it.
 - **Updates need a schedule outside the app.** Mission Centre updates when you open it. A machine where it
@@ -61,6 +64,10 @@ are written into the code as comments next to the fix; this page collects them.
   JSON readers then fail on the first byte. Write with `UTF8Encoding($false)`.
 - **Native output leaks into return values.** `git init` inside a function adds its stdout to what the
   function returns. Assign it to `$null`.
+- **Windows commits lose the executable bit.** A shell script committed from Windows arrives on macOS as
+  `Permission denied`. Set it in git (`git update-index --chmod=+x <file>`) and have CI check it.
+- **Check install commands on the real platform.** A Homebrew cask that once existed (`--cask powershell`)
+  was gone; the formula (`brew install powershell`) is what works now.
 - **Common ports get squatted.** A vendor utility held a port the local server wanted. Check who owns a port
   before using it, and make the port configurable.
 

@@ -40,9 +40,12 @@ jobs:
       - name: Run test suite
         shell: pwsh
         run: ./tests/run-tests.ps1
-      - name: Shell scripts parse
+      - name: Shell scripts parse and are executable
         shell: bash
         run: |
+          for f in launch.sh pi/scripts/bootstrap.sh tools/hooks/pre-push; do
+            test -x "$f" || { echo "$f is not executable (git update-index --chmod=+x $f)"; exit 1; }
+          done
           bash -n launch.sh
           bash -n pi/scripts/bootstrap.sh
           sh -n tools/hooks/pre-push

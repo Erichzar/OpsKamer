@@ -149,7 +149,7 @@ function Start-WithProfile {
     param([string]$ProjectPath, [string]$ProfileName, [string]$MissionLabel)
     $base = if ($MissionLabel) { $MissionLabel } else { Split-Path $ProjectPath -Leaf }
     $missionName = New-MissionName $base
-    Start-ProfileClaudeCommand $ProjectPath $ProfileName @('--name', $missionName) 'Launching new mission' $false $true
+    Start-ProfileClaudeCommand $ProjectPath $ProfileName @('--name', $missionName) 'Launching new mission' $true $true
 }
 
 function Test-PiServerHealth {

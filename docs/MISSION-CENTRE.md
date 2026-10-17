@@ -38,7 +38,7 @@ If `brew --version` does not work after installation, stop and fix Homebrew befo
 ### 2. Install PowerShell 7
 
 ```bash
-brew install --cask powershell
+brew install powershell
 pwsh -NoLogo -Command '$PSVersionTable.PSVersion'
 ```
 

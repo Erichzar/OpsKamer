@@ -18,7 +18,7 @@ except what your own tools already send.
 ## Quick start
 
 You need **git**, **Node.js** (22.19+), **PowerShell** (built in on Windows; on macOS
-`brew install --cask powershell`) and **[Claude Code](https://docs.anthropic.com/en/docs/claude-code)**.
+`brew install powershell`) and **[Claude Code](https://docs.anthropic.com/en/docs/claude-code)**.
 Jig and the Forge plugin are optional but recommended: see [docs/MISSION-CENTRE.md](docs/MISSION-CENTRE.md).
 
 **macOS**
