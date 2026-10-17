@@ -1,0 +1,12 @@
+name: craft
+description: "Craft dev harness pilot -- story/cycle workflow. WARNING: auto-approves Bash; personal projects only."
+model: opus
+effort: high
+enabled_plugins:
+  craft@craft: true
+append_system_prompt: |
+  This session uses the craft plugin's story/cycle workflow. First use in a
+  project: /craft:init, then /craft:story-new. /craft:guide explains the loop.
+  Craft auto-approves Bash commands in this session - treat it with the same
+  care as a full-autonomy profile: personal projects only, keep work committed,
+  and never point it at client repositories.

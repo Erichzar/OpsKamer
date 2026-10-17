@@ -1,0 +1,3 @@
+# OpsKamer
+
+@AGENTS.md

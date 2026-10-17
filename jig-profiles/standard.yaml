@@ -1,0 +1,8 @@
+name: standard
+description: "Default daily driver -- balanced Sonnet/medium for routine project work."
+model: sonnet
+effort: medium
+permission_mode: default
+append_system_prompt: |
+  Use focused codebase exploration. Read project CLAUDE.md first when present.
+  Prefer small, verifiable changes and preserve unrelated user edits.

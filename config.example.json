@@ -1,0 +1,66 @@
+{
+    "scanRoot": "~/Projects",
+    "defaultProfile": "standard",
+    "metaProfile": "forge",
+    "preflightMode": "warn",
+    "homeRecentCount": 5,
+    "dormantIdleDays": 60,
+    "autoDormant": true,
+    "animations": true,
+    "sound": true,
+    "soundVolume": 0.2,
+    "wikiVaults": {},
+    "wikiContext": {
+        "profilePage": "profile",
+        "mapPage": "system-map"
+    },
+    "contextIndex": {
+        "enabled": false,
+        "command": "npx ai-codex",
+        "maxAgeDays": 3
+    },
+    "toolUpdates": {
+        "enabled": true,
+        "mode": "check",
+        "intervalHours": 24,
+        "includeClaudeCode": true,
+        "checkPiOnLaunch": true,
+        "packages": [
+            "@earendil-works/pi-coding-agent"
+        ],
+        "piPackages": [
+            "@earendil-works/pi-coding-agent"
+        ],
+        "piFork": {
+            "enabled": false,
+            "repoPath": "",
+            "remote": "origin",
+            "branch": "main",
+            "buildScript": "build:offline",
+            "fallbackCommand": "pi"
+        }
+    },
+    "defaultEngine": "claude",
+    "pi": {
+        "enabled": false,
+        "command": "pi",
+        "provider": "",
+        "model": "",
+        "modelCycle": "",
+        "healthUrl": "",
+        "autoStart": true,
+        "taskName": "",
+        "startCommand": "",
+        "workingDir": "",
+        "startWaitSeconds": 15
+    },
+    "deviceName": "",
+    "selfUpdate": {
+        "enabled": true
+    },
+    "sharedState": {
+        "enabled": false,
+        "remote": "",
+        "sshKey": ""
+    }
+}

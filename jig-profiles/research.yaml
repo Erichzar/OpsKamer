@@ -1,0 +1,9 @@
+name: research
+description: "Investigation and context-gathering before implementation (sonnet/high)."
+model: sonnet
+effort: high
+permission_mode: default
+append_system_prompt: |
+  Gather only the context needed for the question.
+  Cite source files or external references when conclusions depend on them.
+  Summarize findings before proposing implementation.

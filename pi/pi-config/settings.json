@@ -1,0 +1,13 @@
+{
+  "defaultProvider": "anthropic",
+  "defaultModel": "claude-sonnet-5",
+  "defaultThinkingLevel": "high",
+  "packages": [
+    "npm:@howaboua/pi-semantic-grep"
+  ],
+  "compaction": {
+    "enabled": true,
+    "triggerTokens": 200000,
+    "keepRecentTokens": 10000
+  }
+}

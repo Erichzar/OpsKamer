@@ -45,9 +45,9 @@ $rules = @(  # privacy-check: allow
     @{ id = 'path.windows-home'; re = '(?i)[A-Z]:\\+Users\\+(?!(<|\$|%|\{|USERNAME|you\b|Public\b|Default\b|runneradmin\b))[A-Za-z0-9._\-]+' } # privacy-check: allow
     @{ id = 'path.mac-home';     re = '/Users/(?!(<|\$|\{|you\b|Shared\b|runner\b|USERNAME\b))[A-Za-z0-9._\-]+' } # privacy-check: allow
     @{ id = 'path.linux-home';   re = '/home/(?!(<|\$|\{|you\b|runner\b|USERNAME\b|linuxbrew\b))[A-Za-z0-9._\-]+' } # privacy-check: allow
-    @{ id = 'email';             re = '(?i)\b[A-Z0-9._%+\-]+@(?!(users\.noreply\.github\.com|example\.(com|org|net)\b))[A-Z0-9.\-]+\.[A-Z]{2,}\b' } # privacy-check: allow
+    @{ id = 'email';             re = '(?i)\b[A-Z0-9._%+\-]+@(?!(users\.noreply\.github\.com\b|github\.com\b|example\.[a-z]+\b|[a-z0-9.\-]+\.(example|invalid|test)\b))[A-Z0-9.\-]+\.[A-Z]{2,}\b' } # privacy-check: allow
 )
-# Emails that are part of public tooling, not people (ssh remotes, package scopes are not emails).
+# Not people: ssh remotes, URL user-info on github.com (test fixtures), reserved example domains.
 $emailAllow = '^(git@github\.com|noreply@anthropic\.com)$'
 
 $findings = [System.Collections.Generic.List[object]]::new()

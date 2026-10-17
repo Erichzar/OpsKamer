@@ -1,0 +1,9 @@
+name: build
+description: "Greenfield features and architecture -- plans before coding (opus-plan/high)."
+model: opus
+effort: high
+permission_mode: plan
+append_system_prompt: |
+  Plan architecture and risky choices before implementation.
+  Keep the active context focused on files needed for the current feature.
+  Start with one capable agent; escalate only when the work clearly needs parallel tracks.

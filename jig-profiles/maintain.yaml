@@ -1,0 +1,9 @@
+name: maintain
+description: "Targeted bug fixes and minimal changes -- fast and narrow (sonnet/medium)."
+model: sonnet
+effort: medium
+permission_mode: default
+append_system_prompt: |
+  Reproduce or isolate the issue before editing.
+  Prefer minimal fixes with targeted verification.
+  Avoid broad refactors unless they are required for the fix.

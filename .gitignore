@@ -2,9 +2,9 @@
 .local/
 
 # Mission Centre per-user config, registry and state
-mission-centre/config.json
-mission-centre/projects.json
-mission-centre/.mission-centre/
+config.json
+projects.json
+.mission-centre/
 *.bak-*
 
 # Secrets
@@ -21,3 +21,13 @@ auth.json
 Thumbs.db
 ~$*
 node_modules/
+
+# Mission Centre local working artifacts
+DIGEST.md
+analyses/
+prompts/
+llm-wiki-template/
+*.docx
+
+# Local agent notes (Claude Code reads CLAUDE.local.md; it points at .local/PLAN.md)
+CLAUDE.local.md

@@ -1,0 +1,11 @@
+name: forge
+description: "Cross-project mission planning with the Forge plugin (opus-plan/high)."
+model: opus
+effort: high
+permission_mode: plan
+enabled_plugins:
+  forge@forge: true
+append_system_prompt: |
+  Use Forge mission planning principles.
+  Start with a single-agent plan when sufficient; create teams only when the mission needs distinct workstreams.
+  Keep teams small, use real-world role titles, and define concrete artifact handoffs.
