@@ -9,7 +9,8 @@ current, a pi coding-agent setup, a few skills, and the lessons learned building
 |---|---|
 | [**Mission Centre**](docs/MISSION-CENTRE.md) | A terminal menu over all your projects. Shows recent sessions, launches Claude Code (through [Jig](https://github.com/jdforsythe/jig) profiles) or [pi](https://github.com/earendil-works/pi) in the right folder, plans new work with Forge or vibe-check, and keeps itself, Claude Code, pi and an optional pi fork up to date. |
 | [**pi setup**](pi/README.md) | Installs pi with a sensible config. Optional: run a pi fork from source as `pii`. |
-| [**Skills**](skills/README.md) | `vibe-check` (idea to buildable plan, for beginners) and `ui-design` (art direction and visual review). |
+| [**Second brain**](docs/SECOND-BRAIN.md) | An Obsidian vault you deposit anything into (text, links, files) and ask questions about later. `[BR]` in Mission Centre; the `second-brain` skill files, links and answers in Claude Code and pi. |
+| [**Skills**](skills/README.md) | `vibe-check` (idea to buildable plan, for beginners), `ui-design` (art direction and visual review) and `second-brain` (Obsidian vault librarian). |
 | [**Lessons**](docs/LESSONS.md) | What broke, and the rules that came out of it: updates, Windows quirks, safe self-updates, tests, privacy. |
 
 Everything runs locally in PowerShell. There is no server and no account, and nothing is sent anywhere
@@ -44,7 +45,7 @@ powershell -ExecutionPolicy Bypass -File .\setup.ps1
 ```
 
 Then press `S` to scan for projects, pick one, and `L` to launch it. `H` runs a health check and `U` checks
-for updates.
+for updates. `BR` sets up and opens your [second brain](docs/SECOND-BRAIN.md).
 
 ## Model access: bring your own
 

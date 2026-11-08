@@ -12,6 +12,7 @@ function Start-MissionCentre {
     if ($AutoDormantEnabled) { [void](Invoke-AutoDormant ([ref]$config) $DormantIdleDays) }
     [void](Invoke-McStartupStep 'profiles and plugins' { Invoke-StartupDriftCheck })
     [void](Invoke-McStartupStep 'tool updates'         { Invoke-StartupToolUpdateCheck })
+    Sync-SecondBrainPointer
     Complete-McIntro
     $running = $true
 
@@ -70,6 +71,9 @@ function Start-MissionCentre {
         } elseif ($rawUp -eq 'MR') {
             Start-ResumePicker $ScanRoot $MetaProfile
             Start-Sleep -Seconds 1
+
+        } elseif ($rawUp -eq 'BR') {
+            Invoke-SecondBrainMenu
 
         } elseif ($rawUp -eq 'H') {
             Clear-Host
@@ -211,7 +215,7 @@ function Start-MissionCentre {
             }
 
         } else {
-            Write-Host '  Unknown option - pick a project number or a menu key ([/], A, D, M, MC, MR, N, I, S, SR, H, G, Q).' -ForegroundColor Red
+            Write-Host '  Unknown option - pick a project number or a menu key ([/], A, D, M, MC, MR, N, I, BR, S, SR, H, G, Q).' -ForegroundColor Red
             Start-Sleep -Seconds 1
         }
     }

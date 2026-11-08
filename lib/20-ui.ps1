@@ -131,12 +131,13 @@ function Show-ProjectMenu {
     Write-Host '  [N]   New project'                                        -ForegroundColor Green
     Write-Host '  [I]   Import existing folder as a project'                 -ForegroundColor Green
     Write-Host '  [NA]  New App (vibe-check) - idea -> buildable plan'      -ForegroundColor Green
+    Write-Host '  [BR]  Second brain (Obsidian) - deposit, dig up, ask'     -ForegroundColor Yellow
     Write-Host '  [H]   Environment health check'                          -ForegroundColor Cyan
     Write-Host '  [G]   Install starter Jig profiles + bundled skills'      -ForegroundColor Cyan
     Write-Host '  [U]   Update tools (pi, claude, agent CLIs)'               -ForegroundColor Cyan
     Write-Host "  [SR]  Change scan root (current: $ScanRoot)"              -ForegroundColor DarkGray
     Write-Host ''
-    $choice = Read-McMenuLine '  Pick a recent #, [/] find, [A] all, [D] Dormant, [O] Other devices, [M] Meta, [N] New, [I] Import, [NA] New App, [S] Scan, [SR] Root, [H] Health, [G] Profiles, [U] Updates, [Q] Quit'
+    $choice = Read-McMenuLine '  Pick a recent #, [/] find, [A] all, [D] Dormant, [O] Other devices, [M] Meta, [N] New, [I] Import, [NA] New App, [BR] Brain, [S] Scan, [SR] Root, [H] Health, [G] Profiles, [U] Updates, [Q] Quit'
     if ($null -eq $choice) { return 'Q' }
     return $choice.Trim()
 }

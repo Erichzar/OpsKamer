@@ -22,7 +22,7 @@ most rules below come from a bug.
 | `pi/` | pi bootstrap scripts and config |
 | `tests/run-tests.ps1` | Dependency-free, hermetic test suite |
 | `tools/privacy-check.ps1` | Fails on secrets, private IPs, personal paths/emails, non-noreply commits |
-| `docs/` | Mission Centre manual, model access, lessons |
+| `docs/` | Mission Centre manual, model access, second brain, lessons |
 
 `config.json`, `projects.json` and `.mission-centre/` are per user and gitignored. Never commit them.
 
@@ -35,7 +35,8 @@ globals stay visible inside the functions. To add a function, put it in the matc
 - `00-config` first-run config · `05-vibe` banner, theme, animations · `10-util` quoting and command
   builders · `20-ui` menus · `30-discovery` project discovery, registry I/O, scaffolding, skills install ·
   `35-sharedstate` self-update and the optional shared registry · `40-sessions` Claude Code / pi session
-  history · `50-context` CLAUDE.md setup, wiki config, context pack · `60-health` checks and Jig preflight ·
+  history · `50-context` CLAUDE.md setup, wiki config, context pack · `55-brain` second brain (Obsidian vault,
+  inbox captures, `[BR]` menu) · `60-health` checks and Jig preflight ·
   `65-updates` toolchain and pi-fork updates · `66-sources` skills, pi packages and tokenjuice from their own sources · `80-launch` terminals and every launch path ·
   `99-main` menu loop and dispatch.
 
