@@ -179,6 +179,18 @@ function Add-SecondBrainCapture {
     return $path
 }
 
+function ConvertFrom-TerminalPathText {
+    # Pure: a path typed or dragged into a terminal, cleaned up: trimmed, outer quotes removed and, off Windows,
+    # backslash-escaped characters unescaped (macOS Terminal drags "My\ Vault" for "My Vault").
+    param([string]$Text)
+    $t = ([string]$Text).Trim()
+    if ($t.Length -ge 2 -and (($t.StartsWith("'") -and $t.EndsWith("'")) -or ($t.StartsWith('"') -and $t.EndsWith('"')))) {
+        $t = $t.Substring(1, $t.Length - 2).Trim()
+    }
+    if (-not $MissionIsWindows) { $t = $t -replace '\\(.)', '$1' }
+    return $t
+}
+
 function Resolve-DroppedFilePath {
     # A file dragged into a terminal arrives as a path: maybe 'quoted' or "quoted", or with
     # backslash-escaped spaces (macOS Terminal). Returns the full path of an existing file, else ''.
@@ -396,7 +408,7 @@ function Invoke-SecondBrainSetup {
     $default = Get-SecondBrainDefaultVault
     $answer = Read-Host "  Folder for your second brain (Enter for $default)"
     if ($null -eq $answer) { return '' }
-    $raw = if ([string]::IsNullOrWhiteSpace($answer)) { $default } else { $answer.Trim().Trim('"', "'") }
+    $raw = if ([string]::IsNullOrWhiteSpace($answer)) { $default } else { ConvertFrom-TerminalPathText $answer }
     try { $vault = [System.IO.Path]::GetFullPath((Resolve-UserPath $raw)).TrimEnd('\', '/') } catch {
         Write-Host "  ERROR: not a valid folder path: $raw" -ForegroundColor Red
         return ''

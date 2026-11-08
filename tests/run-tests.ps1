@@ -1450,6 +1450,12 @@ try {
     } else {
         Skip 'brain: macOS-escaped dropped path' 'backslash is the path separator on Windows'
     }
+    Check 'brain: a typed vault path loses its quotes' ((ConvertFrom-TerminalPathText "  '/x/My Vault'  ") -eq '/x/My Vault' -and (ConvertFrom-TerminalPathText '"/x/v"') -eq '/x/v')
+    if (-not $IsWinHost) {
+        Check 'brain: a dragged-in folder path is unescaped (macOS Terminal)' ((ConvertFrom-TerminalPathText '/x/Mobile\ Documents/My\ Vault ') -eq '/x/Mobile Documents/My Vault')
+    } else {
+        Check 'brain: Windows backslashes stay as they are' ((ConvertFrom-TerminalPathText 'C:\x\My Vault') -eq 'C:\x\My Vault')
+    }
     Check 'brain: ordinary text is not a path' ((Resolve-DroppedFilePath 'remember to buy milk') -eq '' -and (Resolve-DroppedFilePath '') -eq '' -and (Resolve-DroppedFilePath $dropDir) -eq '')
     $dropCopy = Add-SecondBrainFile $brain $dropFile
     Check 'brain: a dropped file is copied to the inbox, the original stays' ((Test-Path -LiteralPath $dropCopy) -and (Test-Path -LiteralPath $dropFile) -and (Split-Path (Split-Path $dropCopy -Parent) -Leaf) -eq '_inbox')
