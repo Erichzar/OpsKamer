@@ -184,6 +184,14 @@ $SharedStateRemote  = [string](Get-OptionalProperty $SharedStateConfig 'remote' 
 $SharedStateSshKey  = Resolve-UserPath ([string](Get-OptionalProperty $SharedStateConfig 'sshKey' ''))
 $SharedStateDir     = Join-Path $MissionStateDir 'shared-state'
 
+# Second brain (lib/55-brain.ps1): an Obsidian vault you deposit into and ask questions about,
+# [BR] on the home screen. The bundled second-brain skill finds the vault via ~/.second-brain/config.
+#   "secondBrain": { "vault": "~/SecondBrain" }
+$SecondBrainConfig      = Get-OptionalProperty $AppConfig 'secondBrain' $null
+$SecondBrainVault       = Resolve-UserPath ([string](Get-OptionalProperty $SecondBrainConfig 'vault' ''))
+$SecondBrainConfigDir   = Join-Path $(if ($HOME) { $HOME } else { $env:USERPROFILE }) '.second-brain'
+$SecondBrainTemplateDir = Join-Path (Join-Path (Join-Path $BundledSkillsDir 'second-brain') 'assets') 'vault'
+
 
 $SkipDirNames = @(
     'node_modules', '.git', 'dist', 'build', 'bin', 'obj', 'out',

@@ -281,6 +281,21 @@ function Invoke-EnvironmentHealth {
         Write-Host "   $($r.skill) ($($r.harness)): $($r.status)$hint" -ForegroundColor $color
     }
 
+    Write-Host ''
+    Write-Host '  Second brain' -ForegroundColor Cyan
+    $brainVault = Get-SecondBrainVault
+    if (-not $brainVault) {
+        Write-Host '   not set up - [BR] on the home screen sets one up' -ForegroundColor DarkGray
+    } else {
+        $bs = Get-SecondBrainStats $brainVault
+        if ($bs.exists) { Write-Host "   vault : $brainVault ($($bs.notes) notes, $($bs.inbox) in the inbox)" -ForegroundColor DarkGreen }
+        else            { Write-Host "   vault : $brainVault - folder not found" -ForegroundColor Yellow }
+        $pointer = Read-SecondBrainPointer
+        if ((ConvertTo-NormalizedPathKey $pointer) -ne (ConvertTo-NormalizedPathKey $brainVault)) {
+            Write-Host '   ~/.second-brain/config does not point at it yet (written at the next start or [BR])' -ForegroundColor Yellow
+        }
+    }
+
     if ($PiEnabled) {
         # Local checks only (no registry/git fetch) so [H] stays fast; [U] does the network probe.
         Write-Host ''

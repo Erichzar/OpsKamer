@@ -107,10 +107,12 @@ $hasCommits = $false
 git rev-parse --verify --quiet HEAD *> $null
 if ($LASTEXITCODE -eq 0) { $hasCommits = $true }
 if ($hasCommits) {
+    # noreply@github.com is GitHub itself (web-UI merges, and the merge commit CI checks out for a pull
+    # request): no personal data, and rejecting it failed every pull request and every web-UI merge.
     foreach ($row in @(git log --all --format='%h%x09%ae%x09%ce')) {
         $p = $row -split "`t"
         foreach ($e in $p[1], $p[2]) {
-            if ($e -notmatch '@users\.noreply\.github\.com$') { Add-Finding "commit $($p[0])" 'identity' "author/committer email is not a GitHub noreply address: $e" }
+            if ($e -notmatch '@users\.noreply\.github\.com$' -and $e -ne 'noreply@github.com') { Add-Finding "commit $($p[0])" 'identity' "author/committer email is not a GitHub noreply address: $e" }
         }
     }
     foreach ($row in @(git log --all --format='%h%x09%B%x1e')) {

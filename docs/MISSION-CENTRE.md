@@ -258,6 +258,7 @@ Fields:
 - `contextIndex`: optional third-party codebase index refresh. It is disabled by default.
 - `toolUpdates`: keeps agent CLIs current (enabled by default, `mode: "check"`). See [Tool Updates](#tool-updates).
 - `pi`: optional pi launch engine. Disabled by default. See [Optional: pi](#optional-pi).
+- `secondBrain.vault`: the folder of your second brain (an Obsidian vault). Empty until `BR` sets it up. See [SECOND-BRAIN.md](SECOND-BRAIN.md).
 
 The recommended default is:
 
@@ -308,6 +309,7 @@ Main menu:
 - `SR`: change the scan root, such as from `~/Code` to `~/Projects`.
 - `N`: create a new project folder under the current scan root, add it to Mission Centre, optionally initialize Git and `CLAUDE.md`, and optionally launch a kickoff mission (`P` launches it with pi when `pi` is enabled).
 - `I`: import a folder that already exists (any absolute path) as a project (`P` launches it with pi when `pi` is enabled).
+- `BR`: your second brain, an Obsidian vault: `D` deposit (type, paste or drag in a file), `A` ask a question, `P` let the agent file the inbox, `C` chat, `O` open in Obsidian. The first time it asks where the vault goes. See [SECOND-BRAIN.md](SECOND-BRAIN.md).
 - `G`: install or refresh bundled starter Jig profiles (detects and offers to update stale installed copies).
 - `M`: start a focused meta mission using a goal, selected projects, and `jig run <metaProfile>`.
 - `MC`: continue the latest meta mission.
@@ -364,6 +366,8 @@ Profile names are free-form, but Mission Centre ships these starter profiles in 
 | `lib/*.ps1` | Function library, dot-sourced by `Mission-Centre.ps1` |
 | `.mission-centre/tool-updates.json` | Tool update check cache (throttle), gitignored |
 | `tests/run-tests.ps1` | Test suite (no dependencies) |
+| `skills/second-brain/` | Second brain skill + starter vault (`assets/vault/`) |
+| `~/.second-brain/config` | Where the second-brain skill finds your vault (`VAULT=...`), written by Mission Centre |
 
 ## Tests
 

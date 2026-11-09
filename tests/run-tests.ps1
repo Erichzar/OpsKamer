@@ -6,7 +6,7 @@
     Dot-sources the real lib/*.ps1 under the same StrictMode + Stop policy the app runs with,
     stubbing the root-script config globals. Hermetic: every file fixture (registry, session
     history, wiki config, scan tree) lives under a per-run temp folder that is removed at the
-    end - nothing reads or writes the real ~/.claude, ~/.jig, ~/.obsidian-wiki, or repo config.
+    end - nothing reads or writes the real ~/.claude, ~/.jig, ~/.obsidian-wiki, ~/.second-brain, or repo config.
 
     Runs on Windows PowerShell 5.1 (primary target - StrictMode scalar-.Count and native-stderr
     promotion behave differently there) and PowerShell 7+. Version- or OS-specific checks guard
@@ -101,6 +101,10 @@ try {
     $DefaultEngine = 'claude'
     $SharedStateEnabled = $false; $SharedStateRemote = ''; $SharedStateSshKey = ''
     $SharedStateDir = Join-Path $TestRoot 'shared-state'
+    # Second brain (lib/55-brain.ps1): the real starter template (read only), a temp pointer folder.
+    $SecondBrainVault = ''
+    $SecondBrainConfigDir = Join-Path $TestRoot 'second-brain-home'
+    $SecondBrainTemplateDir = Join-Path (Join-Path (Join-Path (Join-Path $RepoRoot 'skills') 'second-brain') 'assets') 'vault'
 
     . (Join-Path $MissionLibDir '00-config.ps1')
     . (Join-Path $MissionLibDir '05-vibe.ps1')
@@ -110,6 +114,7 @@ try {
     . (Join-Path $MissionLibDir '35-sharedstate.ps1')
     . (Join-Path $MissionLibDir '40-sessions.ps1')
     . (Join-Path $MissionLibDir '50-context.ps1')
+    . (Join-Path $MissionLibDir '55-brain.ps1')
     . (Join-Path $MissionLibDir '60-health.ps1')
     . (Join-Path $MissionLibDir '65-updates.ps1')
     . (Join-Path $MissionLibDir '66-sources.ps1')
@@ -1406,6 +1411,116 @@ try {
         Check 'scaffold: git init + CLAUDE.md -> returns exactly the project object' ($made.Count -eq 1 -and $made[0].path -eq $madePath)
         Check 'scaffold: git repo and CLAUDE.md created' ((Test-Path (Join-Path $madePath '.git')) -and (Test-Path (Join-Path $madePath 'CLAUDE.md')))
     }
+
+    # =======================================================================
+    # Second brain (lib/55-brain.ps1): vault scaffold, inbox captures, pointer, prompts
+    # =======================================================================
+    $brain = Join-Path $TestRoot 'Second Brain'
+    $made = Initialize-SecondBrainVault $brain
+    Check 'brain: scaffold copies the starter files' ($made -ge 5 -and (Test-Path (Join-Path $brain 'BRAIN.md')) -and (Test-Path (Join-Path (Join-Path $brain '.obsidian') 'app.json')))
+    Check 'brain: scaffold creates every folder' (@(Get-SecondBrainFolders | Where-Object { -not (Test-Path (Join-Path $brain $_) -PathType Container) }).Count -eq 0)
+    Set-Content -LiteralPath (Join-Path $brain 'index.md') -Value 'MY OWN HOME' -Encoding UTF8
+    $again = Initialize-SecondBrainVault $brain
+    Check 'brain: a re-run adds nothing and keeps my edits' ($again -eq 0 -and (Get-Content (Join-Path $brain 'index.md') -Raw) -match 'MY OWN HOME')
+    $existingVault = Join-Path $TestRoot 'existing-vault'
+    New-Item -ItemType Directory -Path (Join-Path $existingVault '.obsidian') -Force | Out-Null
+    [void](Initialize-SecondBrainVault $existingVault)
+    Check 'brain: an existing vault keeps its own Obsidian settings' (-not (Test-Path (Join-Path (Join-Path $existingVault '.obsidian') 'app.json')) -and (Test-Path (Join-Path $existingVault 'BRAIN.md')))
+
+    $when = [datetime]'2026-11-08 14:05:12'
+    $cap = Add-SecondBrainCapture $brain "Ouma se ""suurdeeg"" resep`n`n500 g meel" $when
+    $capText = [System.IO.File]::ReadAllText($cap)
+    Check 'brain: a capture lands in _inbox with a dated name' ((Split-Path $cap -Leaf) -eq '2026-11-08 140512 capture.md' -and (Split-Path (Split-Path $cap -Parent) -Leaf) -eq '_inbox')
+    Check 'brain: a capture keeps the text exactly' ($capText.Contains("Ouma se ""suurdeeg"" resep`n`n500 g meel"))
+    Check 'brain: the capture summary is YAML-escaped' ($capText.Contains('summary: "Ouma se \"suurdeeg\" resep"'))
+    $capBytes = [System.IO.File]::ReadAllBytes($cap)
+    Check 'brain: a capture is BOM-free' (-not ($capBytes.Length -ge 3 -and $capBytes[0] -eq 0xEF -and $capBytes[1] -eq 0xBB -and $capBytes[2] -eq 0xBF))
+    $cap2 = Add-SecondBrainCapture $brain 'second' $when
+    Check 'brain: the same second gives a second file, never an overwrite' ((Split-Path $cap2 -Leaf) -eq '2026-11-08 140512 capture (2).md' -and [System.IO.File]::ReadAllText($cap).Contains('Ouma'))
+
+    $dropDir = Join-Path $TestRoot 'drop me'
+    New-Item -ItemType Directory -Path $dropDir -Force | Out-Null
+    $dropFile = Join-Path $dropDir 'my file.pdf'
+    Set-Content -LiteralPath $dropFile -Value 'pdf' -Encoding ASCII
+    $dropFull = (Resolve-Path -LiteralPath $dropFile).Path
+    Check 'brain: a dropped path is recognised' ((Resolve-DroppedFilePath $dropFile) -eq $dropFull)
+    Check 'brain: a quoted dropped path is recognised' ((Resolve-DroppedFilePath "'$dropFile'") -eq $dropFull -and (Resolve-DroppedFilePath """$dropFile""") -eq $dropFull)
+    if (-not $IsWinHost) {
+        Check 'brain: a macOS-escaped dropped path is recognised' ((Resolve-DroppedFilePath ($dropFile -replace ' ', '\ ')) -eq $dropFull)
+    } else {
+        Skip 'brain: macOS-escaped dropped path' 'backslash is the path separator on Windows'
+    }
+    Check 'brain: a typed vault path loses its quotes' ((ConvertFrom-TerminalPathText "  '/x/My Vault'  ") -eq '/x/My Vault' -and (ConvertFrom-TerminalPathText '"/x/v"') -eq '/x/v')
+    if (-not $IsWinHost) {
+        Check 'brain: a dragged-in folder path is unescaped (macOS Terminal)' ((ConvertFrom-TerminalPathText '/x/Mobile\ Documents/My\ Vault ') -eq '/x/Mobile Documents/My Vault')
+    } else {
+        Check 'brain: Windows backslashes stay as they are' ((ConvertFrom-TerminalPathText 'C:\x\My Vault') -eq 'C:\x\My Vault')
+    }
+    Check 'brain: ordinary text is not a path' ((Resolve-DroppedFilePath 'remember to buy milk') -eq '' -and (Resolve-DroppedFilePath '') -eq '' -and (Resolve-DroppedFilePath $dropDir) -eq '')
+    $dropCopy = Add-SecondBrainFile $brain $dropFile
+    Check 'brain: a dropped file is copied to the inbox, the original stays' ((Test-Path -LiteralPath $dropCopy) -and (Test-Path -LiteralPath $dropFile) -and (Split-Path (Split-Path $dropCopy -Parent) -Leaf) -eq '_inbox')
+    $fileCap = [System.IO.File]::ReadAllText((Add-SecondBrainCapture $brain '' $when.AddSeconds(1) 'my file.pdf'))
+    Check 'brain: a file capture links the file' ($fileCap.Contains('[[my file.pdf]]') -and $fileCap.Contains('summary: "File: my file.pdf"'))
+
+    Set-Content -LiteralPath (Join-Path (Join-Path $brain 'notes') 'Suurdeeg.md') -Value "---`ntitle: Suurdeeg`n---" -Encoding UTF8
+    Add-Content -LiteralPath (Join-Path $brain 'log.md') -Value '- 2026-11-08 14:05 | added [[Suurdeeg]]' -Encoding UTF8
+    $bst = Get-SecondBrainStats $brain
+    Check 'brain: stats count notes, not the vault pages or templates' ($bst.exists -and $bst.notes -eq 1)
+    Check 'brain: stats count inbox items, not its README' ($bst.inbox -eq 4)
+    Check 'brain: stats show the last log line' ($bst.lastLog -eq '2026-11-08 14:05 | added [[Suurdeeg]]')
+    Check 'brain: stats of a missing vault' (-not (Get-SecondBrainStats (Join-Path $TestRoot 'no-vault')).exists)
+
+    Check 'brain: pointer written once, then left alone' ((Write-SecondBrainPointer $brain) -and -not (Write-SecondBrainPointer $brain))
+    Check 'brain: pointer reads back' ((Read-SecondBrainPointer) -eq $brain)
+    $ptrBytes = [System.IO.File]::ReadAllBytes((Get-SecondBrainPointerPath))
+    Check 'brain: pointer is BOM-free for shell tools' (-not ($ptrBytes[0] -eq 0xEF -and $ptrBytes[1] -eq 0xBB))
+    [void](Write-SecondBrainPointer (Join-Path $TestRoot 'other-vault'))
+    Check 'brain: a changed pointer is backed up first' (@(Get-ChildItem -LiteralPath $SecondBrainConfigDir -Filter 'config.bak-*').Count -eq 1)
+
+    $savedBrainEnv = $env:SECOND_BRAIN_VAULT
+    $env:SECOND_BRAIN_VAULT = $null; $SecondBrainVault = ''
+    Check 'brain: not set up -> no vault' ((Get-SecondBrainVault) -eq '')
+    $env:SECOND_BRAIN_VAULT = $brain
+    Check 'brain: SECOND_BRAIN_VAULT is used when config has none' ((Get-SecondBrainVault) -eq $brain)
+    $SecondBrainVault = $existingVault
+    Check 'brain: config.json wins over the variable' ((Get-SecondBrainVault) -eq $existingVault)
+    $env:SECOND_BRAIN_VAULT = $savedBrainEnv; $SecondBrainVault = ''
+
+    '{"scanRoot":"X:/scan"}' | Set-Content $AppConfigPath -Encoding UTF8
+    $savedOk = Save-SecondBrainVaultSetting $brain
+    $savedCfg = Get-Content $AppConfigPath -Raw | ConvertFrom-Json
+    Check 'brain: vault saved to config.json, other settings kept' ($savedOk -and $savedCfg.secondBrain.vault -eq $brain -and $savedCfg.scanRoot -eq 'X:/scan')
+    Check 'brain: config.json backed up before the change' (@(Get-ChildItem -LiteralPath $TestRoot -Filter 'config.json.bak-*').Count -ge 1)
+    [void](Save-SecondBrainVaultSetting $existingVault)
+    Check 'brain: changing the vault updates the same key' ((Get-Content $AppConfigPath -Raw | ConvertFrom-Json).secondBrain.vault -eq $existingVault)
+
+    $askPrompt = Get-SecondBrainPrompt 'ask' $brain "Wat het ek oor ""suurdeeg"" gestoor?`nEn brood?"
+    Check 'brain: the ask prompt names the skill, the vault and the question' ($askPrompt -match 'second-brain skill' -and $askPrompt.Contains($brain) -and $askPrompt.Contains('suurdeeg') -and $askPrompt.Contains('En brood?'))
+    Check 'brain: prompts are one line without double quotes' (-not $askPrompt.Contains('"') -and -not $askPrompt.Contains("`n"))
+    Check 'brain: the process prompt archives, never deletes' ((Get-SecondBrainPrompt 'process' $brain) -match '_archive/inbox')
+    $savedEngine = $DefaultEngine; $savedPi = $PiEnabled
+    $DefaultEngine = 'pi'; $PiEnabled = $true
+    Check 'brain: pi as default engine -> pi' ((Get-SecondBrainEngine) -eq 'pi')
+    $PiEnabled = $false
+    Check 'brain: pi not enabled -> Claude Code' ((Get-SecondBrainEngine) -eq 'claude')
+    $DefaultEngine = $savedEngine; $PiEnabled = $savedPi
+
+    $obsJson = Join-Path $TestRoot 'obsidian.json'
+    (@{ vaults = @{ abc123 = @{ path = $brain; ts = 1 } } } | ConvertTo-Json -Depth 5) | Set-Content -LiteralPath $obsJson -Encoding UTF8
+    Check 'brain: Obsidian knows a registered vault' (Test-ObsidianKnowsVault ($brain + [System.IO.Path]::DirectorySeparatorChar) $obsJson)
+    Check 'brain: Obsidian does not know another folder' (-not (Test-ObsidianKnowsVault $existingVault $obsJson))
+    Check 'brain: no obsidian.json -> unknown vault' (-not (Test-ObsidianKnowsVault $brain (Join-Path $TestRoot 'no-obsidian.json')))
+    Check 'brain: the open URI is escaped' ((Get-ObsidianOpenUri '/a b/c') -eq 'obsidian://open?path=%2Fa%20b%2Fc')
+
+    $script:brainFeed = [System.Collections.Generic.Queue[object]]::new()
+    foreach ($l in @('line one', '', 'line two', '', '')) { $script:brainFeed.Enqueue($l) }
+    Check 'brain: one empty line is a paragraph break, two end the input' ((Read-SecondBrainLines { $script:brainFeed.Dequeue() }) -eq "line one`n`nline two")
+    $script:brainFeed.Clear(); $script:brainFeed.Enqueue('')
+    Check 'brain: an empty first line cancels' ((Read-SecondBrainLines { $script:brainFeed.Dequeue() }) -eq '')
+    $script:brainFeed.Clear(); $script:brainFeed.Enqueue($dropFile); $script:brainFeed.Enqueue('not read')
+    Check 'brain: a dropped file ends the input at once' ((Read-SecondBrainLines { $script:brainFeed.Dequeue() }) -eq $dropFile -and $script:brainFeed.Count -eq 1)
+    $script:brainFeed.Clear(); $script:brainFeed.Enqueue('only line'); $script:brainFeed.Enqueue($null)
+    Check 'brain: end of input keeps what was typed' ((Read-SecondBrainLines { $script:brainFeed.Dequeue() }) -eq 'only line')
 
     # =======================================================================
     # Banner shimmer: repaint only where the panel still is (no second banner over the list)

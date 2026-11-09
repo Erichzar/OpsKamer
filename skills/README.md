@@ -8,6 +8,7 @@ you already have is never overwritten, and drift shows up under [H] Health / [G]
 |---|---|---|
 | [`vibe-check`](vibe-check/SKILL.md) | Turns a beginner's app idea into a buildable plan, and keeps them oriented while building. Used by `[NA] New App`. Vendored from [TexasBedouin/vibe-check](https://github.com/TexasBedouin/vibe-check) (see `VENDORED.md`). | MIT, see `vibe-check/LICENSE` |
 | [`ui-design`](ui-design/SKILL.md) | Art direction and visual review for web UIs in any stack: direction, tokens, build, screenshot review. | Includes MIT material, see `ui-design/references/sources.md` |
+| [`second-brain`](second-brain/SKILL.md) | Librarian for your Obsidian vault: files what you deposit (summary, tags, links, log), processes the inbox, answers questions from your notes with citations. `assets/vault/` is the starter vault. See [docs/SECOND-BRAIN.md](../docs/SECOND-BRAIN.md). | Apache-2.0 (this repo) |
 
 ## Without Mission Centre
 
